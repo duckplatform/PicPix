@@ -3,27 +3,11 @@
 <section class="card form-card">
   <div>
     <p class="eyebrow">Mes evenements</p>
-    <h1>Modifier un evenement</h1>
-    <p>Seuls les champs metier sont modifiables. Les champs systeme restent geres automatiquement.</p>
+    <h1>Creer un evenement</h1>
+    <p>Renseignez les informations principales de votre evenement puis publiez-le quand vous etes pret.</p>
   </div>
 
-  <div class="definition-list">
-    <div>
-      <dt>UUID</dt>
-      <dd><code><%= editingEvent.uuid %></code></dd>
-    </div>
-    <div>
-      <dt>Token</dt>
-      <dd><code><%= editingEvent.token %></code></dd>
-    </div>
-  </div>
-
-  <form method="post" action="/profile/events/<%= editingEvent.id %>/regenerate-token" class="inline-form section-gap">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-    <button class="btn btn-secondary" type="submit">Regenerer le token</button>
-  </form>
-
-  <form method="post" action="/profile/events/<%= editingEvent.id %>?_method=PUT" class="form-grid section-gap">
+  <form method="post" action="/profile/events" class="form-grid section-gap">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
     <label>
@@ -34,7 +18,7 @@
 
     <label>
       <span>Description</span>
-      <textarea name="description" required minlength="10" maxlength="5000" rows="6"><%= formData.description || '' %></textarea>
+      <textarea name="description" required minlength="10" maxlength="5000" rows="5"><%= formData.description || '' %></textarea>
       <% if (fieldErrors.description) { %><small class="field-error"><%= fieldErrors.description %></small><% } %>
     </label>
 
@@ -104,8 +88,7 @@
     </label>
 
     <div class="table-actions">
-      <button class="btn" type="submit">Enregistrer les modifications</button>
-      <a class="btn btn-secondary" href="/profile/event/<%= editingEvent.id %>/moderation">Moderation</a>
+      <button class="btn" type="submit">Creer l'evenement</button>
       <a class="btn btn-secondary" href="/profile">Retour au profil</a>
     </div>
   </form>

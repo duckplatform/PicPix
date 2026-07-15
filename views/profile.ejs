@@ -55,89 +55,13 @@
   </article>
 </section>
 
-<section class="grid-columns section-gap">
-  <article class="card">
-    <p class="eyebrow">Mes evenements</p>
-    <h2>Creer un evenement</h2>
-    <form method="post" action="/profile/events" class="form-grid">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-
-      <label>
-        <span>Nom de l'evenement</span>
-        <input type="text" name="name" value="<%= formData.name || '' %>" required maxlength="180" />
-        <% if (fieldErrors.name) { %><small class="field-error"><%= fieldErrors.name %></small><% } %>
-      </label>
-
-      <label>
-        <span>Description</span>
-        <textarea name="description" required minlength="10" maxlength="5000" rows="5"><%= formData.description || '' %></textarea>
-        <% if (fieldErrors.description) { %><small class="field-error"><%= fieldErrors.description %></small><% } %>
-      </label>
-
-      <label>
-        <span>Date et heure</span>
-        <input type="datetime-local" name="startsAt" value="<%= formData.startsAt || '' %>" required />
-        <% if (fieldErrors.startsAt) { %><small class="field-error"><%= fieldErrors.startsAt %></small><% } %>
-      </label>
-
-      <label>
-        <span>Statut</span>
-        <select name="status" required>
-          <option value="inactive" <%= (formData.status || 'inactive') === 'inactive' ? 'selected' : '' %>>inactive</option>
-          <option value="active" <%= formData.status === 'active' ? 'selected' : '' %>>active</option>
-        </select>
-        <% if (fieldErrors.status) { %><small class="field-error"><%= fieldErrors.status %></small><% } %>
-      </label>
-
-      <label>
-        <span>Theme visuel</span>
-        <select name="theme" required>
-          <% eventThemeOptions.forEach((themeItem) => { %>
-            <option value="<%= themeItem.key %>" <%= (formData.theme || 'classic') === themeItem.key ? 'selected' : '' %>>
-              <%= themeItem.icon %> <%= themeItem.label %>
-            </option>
-          <% }) %>
-        </select>
-        <% if (fieldErrors.theme) { %><small class="field-error"><%= fieldErrors.theme %></small><% } %>
-      </label>
-
-      <label>
-        <span>Transition slideshow</span>
-        <select name="slideshowTransition" required>
-          <% eventTransitionOptions.forEach((transitionItem) => { %>
-            <option value="<%= transitionItem.key %>" <%= (formData.slideshowTransition || 'fade') === transitionItem.key ? 'selected' : '' %>>
-              <%= transitionItem.label %>
-            </option>
-          <% }) %>
-        </select>
-        <% if (fieldErrors.slideshowTransition) { %><small class="field-error"><%= fieldErrors.slideshowTransition %></small><% } %>
-      </label>
-
-      <label>
-        <span>Source des photos</span>
-        <select name="uploadSourceMode" required>
-          <option value="default" <%= (formData.uploadSourceMode || 'default') === 'default' ? 'selected' : '' %>>Defaut</option>
-          <option value="camera_only" <%= formData.uploadSourceMode === 'camera_only' ? 'selected' : '' %>>Camera uniquement</option>
-          <option value="library_only" <%= formData.uploadSourceMode === 'library_only' ? 'selected' : '' %>>Phototheque uniquement</option>
-        </select>
-        <% if (fieldErrors.uploadSourceMode) { %><small class="field-error"><%= fieldErrors.uploadSourceMode %></small><% } %>
-      </label>
-
-      <label>
-        <span class="checkbox-label">
-          <input type="checkbox" name="uploadAllowMultiple" value="1" <%= formData.uploadAllowMultiple !== false ? 'checked' : '' %> />
-          Autoriser plusieurs photos d'affilee
-        </span>
-        <% if (fieldErrors.uploadAllowMultiple) { %><small class="field-error"><%= fieldErrors.uploadAllowMultiple %></small><% } %>
-      </label>
-
-      <button class="btn" type="submit">Creer l'evenement</button>
-    </form>
-  </article>
-
-  <article class="card">
+<section class="section-gap">
+  <article class="card profile-events-card">
     <p class="eyebrow">Mes evenements</p>
     <h2>Liste de mes evenements</h2>
+    <div class="table-actions section-gap">
+      <a class="btn" href="/profile/events/new">Creer un evenement</a>
+    </div>
     <% if (!userEvents.length) { %>
       <p>Aucun evenement cree pour le moment.</p>
     <% } else { %>
@@ -160,7 +84,9 @@
                 <td>
                   <div class="table-actions">
                     <a class="btn btn-small" href="/event/<%= eventItem.token %>" target="_blank" rel="noopener noreferrer">Site</a>
-                    <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/slideshow">Galerie</a>
+                    <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/slideshow">Slideshow</a>
+                    <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/gallery">Galerie</a>
+                    <a class="btn btn-secondary btn-small" href="/profile/event/<%= eventItem.id %>/moderation">Moderation</a>
                     <% if (eventItem.status !== 'active') { %>
                       <form method="post" action="/profile/events/<%= eventItem.id %>/activate" class="inline-form">
                         <input type="hidden" name="_csrf" value="<%= csrfToken %>" />

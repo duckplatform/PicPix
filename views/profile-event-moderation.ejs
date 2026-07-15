@@ -1,0 +1,66 @@
+<%- include('partials/head') %>
+<%- include('partials/header') %>
+
+<section class="card form-card" id="moderation-shell" data-event-id="<%= editingEvent.id %>">
+  <div>
+    <p class="eyebrow">Moderation</p>
+    <h1>Moderation des photos</h1>
+    <p>Evenement : <strong><%= editingEvent.name %></strong>.</p>
+    <p>
+      <% if (editingEvent.moderationEnabled) { %>
+        La moderation est active : seules les photos approuvees seront visibles sur le slideshow et la galerie publique.
+      <% } else { %>
+        La moderation est desactivee : les nouvelles photos sont publiees directement. Vous pouvez tout de meme approuver ou rejeter manuellement des photos existantes.
+      <% } %>
+    </p>
+  </div>
+
+  <div class="table-actions">
+    <a class="btn btn-secondary" href="/profile/events/<%= editingEvent.id %>/edit">Retour a l'edition</a>
+    <a class="btn btn-secondary" href="/profile/events/<%= editingEvent.id %>/gallery">Voir la galerie proprietaire</a>
+  </div>
+
+  <p id="moderation-empty" class="section-gap" <%= moderationFiles.length ? 'hidden' : '' %>>Aucune photo en attente de moderation pour le moment.</p>
+
+  <div id="moderation-pending-grid" class="event-gallery-grid section-gap" <%= moderationFiles.length ? '' : 'hidden' %>>
+    <% moderationFiles.forEach((fileItem) => { %>
+      <article class="event-gallery-card" data-file-id="<%= fileItem.id %>" data-stored-name="<%= fileItem.storedName %>">
+          <a href="<%= fileItem.urls.xl || fileItem.urls.original %>" target="_blank" rel="noopener noreferrer">
+            <img
+              src="<%= fileItem.urls.sm || fileItem.urls.md || fileItem.urls.original %>"
+              alt="<%= fileItem.originalName %>"
+              loading="lazy"
+              onerror="this.onerror=null;this.src='<%= fileItem.urls.original %>';"
+            />
+          </a>
+          <div class="event-gallery-meta">
+            <strong><%= fileItem.originalName %></strong>
+            <small>En attente d'approbation</small>
+            <small>Par <%= fileItem.uploaderName || 'Visiteur' %> · <%= new Date(fileItem.createdAt).toLocaleString('fr-FR') %></small>
+          </div>
+          <div class="table-actions moderation-actions">
+            <form method="post" action="/profile/event/<%= editingEvent.id %>/moderation/<%= fileItem.id %>" class="inline-form js-moderation-action-form" data-file-id="<%= fileItem.id %>">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="moderationStatus" value="approved" />
+              <button class="moderation-icon-btn moderation-icon-btn-approve" type="submit" title="Approuver la photo" aria-label="Approuver la photo">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="M9.55 18.2 3.9 12.56l1.42-1.42 4.23 4.24 9.13-9.14 1.42 1.42z" />
+                </svg>
+              </button>
+            </form>
+            <form method="post" action="/profile/event/<%= editingEvent.id %>/moderation/<%= fileItem.id %>" class="inline-form js-moderation-action-form" data-file-id="<%= fileItem.id %>">
+              <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+              <input type="hidden" name="moderationStatus" value="rejected" />
+              <button class="moderation-icon-btn moderation-icon-btn-reject" type="submit" title="Rejeter la photo" aria-label="Rejeter la photo">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                  <path d="m18.3 7.11-1.41-1.41L12 10.59 7.11 5.7 5.7 7.11 10.59 12 5.7 16.89l1.41 1.41L12 13.41l4.89 4.89 1.41-1.41L13.41 12z" />
+                </svg>
+              </button>
+            </form>
+          </div>
+      </article>
+    <% }) %>
+  </div>
+</section>
+
+<%- include('partials/footer') %>

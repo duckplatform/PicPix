@@ -50,7 +50,7 @@ function createInitialTestUsers() {
       id: 1,
       email: DEFAULT_ADMIN_EMAIL,
       passwordHash: DEFAULT_ADMIN_PASSWORD_HASH,
-      fullName: 'Administrateur PicPix2',
+      fullName: 'Administrateur PicPix',
       role: 'admin',
       status: 'active',
       createdAt: now,

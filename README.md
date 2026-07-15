@@ -1,4 +1,4 @@
-# PicPix2
+# PicPix
 
 Application web Node.js + Express + MySQL avec vues EJS, securisation HTTP, monitoring de base et gestion des comptes utilisateurs.
 

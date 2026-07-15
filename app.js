@@ -278,6 +278,15 @@ function listenAsync() {
 
         socket.join(`event:${eventId}:slideshow`);
       });
+
+      socket.on('moderation:join', (payload = {}) => {
+        const eventId = Number.parseInt(payload.eventId, 10);
+        if (!Number.isInteger(eventId) || eventId <= 0) {
+          return;
+        }
+
+        socket.join(`event:${eventId}:moderation`);
+      });
     });
 
     server.listen(PORT, () => {

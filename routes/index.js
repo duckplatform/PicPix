@@ -75,7 +75,7 @@ function renderEventDescriptionMarkdown(value) {
 
 function renderView(res, view, payload = {}, status = 200) {
   return res.status(status).render(view, {
-    title: 'PicPix2',
+    title: 'PicPix',
     pageClass: '',
     formData: {},
     fieldErrors: {},
@@ -152,6 +152,64 @@ function parseUploadAllowMultiple(value) {
   return value === true || value === 'true' || value === '1' || value === 'on';
 }
 
+function parseModerationEnabled(value) {
+  return value === true || value === 'true' || value === '1' || value === 'on';
+}
+
+function isFileApprovedForDisplay(fileItem) {
+  return Boolean(fileItem) && fileItem.moderationStatus === 'approved';
+}
+
+function buildOwnerPhotoRealtimePayload(eventItem, fileItem) {
+  return {
+    eventId: eventItem.id,
+    fileId: fileItem.id,
+    storedName: fileItem.storedName,
+    originalName: fileItem.originalName,
+    uploaderName: fileItem.uploaderName,
+    uploadedAt: fileItem.createdAt,
+    moderationStatus: fileItem.moderationStatus,
+    urls: {
+      original: `/profile/events/${eventItem.id}/photos/${fileItem.storedName}/original`,
+      md: `/profile/events/${eventItem.id}/photos/${fileItem.storedName}/md`,
+      sm: `/profile/events/${eventItem.id}/photos/${fileItem.storedName}/sm`,
+    },
+  };
+}
+
+async function autoApprovePendingFilesIfModerationDisabled(previousEvent, nextModerationEnabled, app) {
+  if (!previousEvent || !previousEvent.moderationEnabled || nextModerationEnabled) {
+    return 0;
+  }
+
+  const approvedFiles = await eventFileStore.approvePendingByEvent(previousEvent.id);
+  if (approvedFiles.length === 0) {
+    return 0;
+  }
+
+  const io = app && app.locals ? app.locals.io : null;
+  if (io) {
+    approvedFiles.forEach((fileItem) => {
+      io.to(`event:${previousEvent.id}:slideshow`).emit('slideshow:new-photo', {
+        eventId: previousEvent.id,
+        storedName: fileItem.storedName,
+        originalName: fileItem.originalName,
+        uploaderName: fileItem.uploaderName,
+        uploadedAt: fileItem.createdAt,
+      });
+
+      io.to(`event:${previousEvent.id}:moderation`).emit('moderation:photo-reviewed', {
+        eventId: previousEvent.id,
+        fileId: fileItem.id,
+        storedName: fileItem.storedName,
+        moderationStatus: fileItem.moderationStatus,
+      });
+    });
+  }
+
+  return approvedFiles.length;
+}
+
 function normalizeEventFormData(formData = {}, fallback = {}) {
   const uploadSourceMode = EVENT_UPLOAD_SOURCE_MODES.includes(formData.uploadSourceMode)
     ? formData.uploadSourceMode
@@ -161,6 +219,10 @@ function normalizeEventFormData(formData = {}, fallback = {}) {
     ? parseUploadAllowMultiple(formData.uploadAllowMultiple)
     : (fallback.uploadAllowMultiple !== undefined ? Boolean(fallback.uploadAllowMultiple) : true);
 
+  const moderationEnabled = formData.moderationEnabled !== undefined
+    ? parseModerationEnabled(formData.moderationEnabled)
+    : (fallback.moderationEnabled !== undefined ? Boolean(fallback.moderationEnabled) : false);
+
   return {
     ...formData,
     theme: eventThemes.normalizeThemeKey(formData.theme || fallback.theme),
@@ -169,6 +231,7 @@ function normalizeEventFormData(formData = {}, fallback = {}) {
     ),
     uploadSourceMode,
     uploadAllowMultiple,
+    moderationEnabled,
   };
 }
 
@@ -344,6 +407,9 @@ const eventValidators = [
   body('uploadAllowMultiple')
     .optional({ values: 'falsy' })
     .isIn(['1', 'true', 'on']).withMessage('Option d\'upload multiple invalide.'),
+  body('moderationEnabled')
+    .optional({ values: 'falsy' })
+    .isIn(['1', 'true', 'on']).withMessage('Option de moderation invalide.'),
 ];
 
 const adminEventValidators = [
@@ -394,6 +460,7 @@ async function renderProfile(req, res, payload = {}, status = 200) {
       slideshowTransition: eventTransitions.DEFAULT_EVENT_TRANSITION,
       uploadSourceMode: 'default',
       uploadAllowMultiple: true,
+      moderationEnabled: false,
       ...payload.formData,
     },
     ...payload,
@@ -405,6 +472,23 @@ function renderEventNotFound(res) {
     title: 'Evenement introuvable',
     pageClass: 'page-error',
   });
+}
+
+function renderProfileEventCreateForm(req, res, payload = {}, status = 200) {
+  return renderView(res, 'profile-event-create', {
+    title: 'Creer un evenement',
+    pageClass: 'page-profile',
+    formData: {
+      status: 'inactive',
+      theme: eventThemes.DEFAULT_EVENT_THEME,
+      slideshowTransition: eventTransitions.DEFAULT_EVENT_TRANSITION,
+      uploadSourceMode: 'default',
+      uploadAllowMultiple: true,
+      moderationEnabled: false,
+      ...payload.formData,
+    },
+    ...payload,
+  }, status);
 }
 
 function renderProfileEventForm(req, res, eventItem, payload = {}, status = 200) {
@@ -421,10 +505,32 @@ function renderProfileEventForm(req, res, eventItem, payload = {}, status = 200)
       slideshowTransition: eventItem.slideshowTransition || eventTransitions.DEFAULT_EVENT_TRANSITION,
       uploadSourceMode: eventItem.uploadSourceMode,
       uploadAllowMultiple: eventItem.uploadAllowMultiple,
+      moderationEnabled: eventItem.moderationEnabled,
       ...payload.formData,
     },
     ...payload,
   }, status);
+}
+
+async function buildOwnerGalleryFiles(eventItem) {
+  const uploadedFiles = await eventFileStore.listByEvent(eventItem.id);
+
+  return Promise.all(uploadedFiles.map(async (fileItem) => {
+    const hasXl = await imageVariantService.variantExists(eventItem.uuid, fileItem.storedName, 'xl');
+    const hasMd = await imageVariantService.variantExists(eventItem.uuid, fileItem.storedName, 'md');
+    const hasSm = await imageVariantService.variantExists(eventItem.uuid, fileItem.storedName, 'sm');
+
+    return {
+      ...fileItem,
+      isProcessed: hasSm || hasMd || hasXl,
+      urls: {
+        original: `/profile/events/${eventItem.id}/photos/${fileItem.storedName}/original`,
+        xl: hasXl ? `/profile/events/${eventItem.id}/photos/${fileItem.storedName}/xl` : null,
+        md: hasMd ? `/profile/events/${eventItem.id}/photos/${fileItem.storedName}/md` : null,
+        sm: hasSm ? `/profile/events/${eventItem.id}/photos/${fileItem.storedName}/sm` : null,
+      },
+    };
+  }));
 }
 
 router.get('/', (req, res) => {
@@ -506,6 +612,7 @@ router.get('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{1
       uploadOptions: {
         sourceMode: eventItem.uploadSourceMode,
         allowMultiple: eventItem.uploadAllowMultiple,
+        moderationEnabled: eventItem.moderationEnabled,
       },
       headCssPaths: ['/vendor/dropzone/dropzone.css'],
       footerScriptPaths: ['/vendor/dropzone/dropzone-min.js', '/event-upload.js', '/camera.js'],
@@ -535,7 +642,7 @@ router.get('/event/:token/gallery', param('token').trim().matches(/^[A-Za-z0-9]{
       return res.redirect(`/event/${req.params.token}/register`);
     }
 
-    const uploadedFiles = await eventFileStore.listByEvent(eventItem.id);
+    const uploadedFiles = await eventFileStore.listByEventAndStatus(eventItem.id, 'approved');
     const galleryFiles = await Promise.all(uploadedFiles.map(async (fileItem) => {
       const hasXl = await imageVariantService.variantExists(eventItem.uuid, fileItem.storedName, 'xl');
       const hasMd = await imageVariantService.variantExists(eventItem.uuid, fileItem.storedName, 'md');
@@ -602,6 +709,10 @@ router.get(
 
       const variant = req.params.variant;
       const storedName = req.params.storedName;
+      const fileItem = await eventFileStore.findByEventAndStoredName(eventItem.id, storedName);
+      if (!isFileApprovedForDisplay(fileItem)) {
+        return res.status(404).end();
+      }
 
       const filePath = variant === 'original'
         ? imageVariantService.getOriginalPath(eventItem.uuid, storedName)
@@ -690,6 +801,7 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
             sizeBytes: file.size,
             storagePath: path.posix.join('events', eventItem.uuid, 'original', file.filename),
             checksumSha256,
+            moderationStatus: eventItem.moderationEnabled ? 'pending' : 'approved',
           });
 
           imageVariantService.enqueueVariantGeneration(eventItem.uuid, file.filename);
@@ -701,6 +813,14 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
         const io = req.app && req.app.locals ? req.app.locals.io : null;
         if (io) {
           createdFiles.forEach((fileItem) => {
+            if (!isFileApprovedForDisplay(fileItem)) {
+              io.to(`event:${eventItem.id}:moderation`).emit(
+                'moderation:pending-photo',
+                buildOwnerPhotoRealtimePayload(eventItem, fileItem),
+              );
+              return;
+            }
+
             io.to(`event:${eventItem.id}:slideshow`).emit('slideshow:new-photo', {
               eventId: eventItem.id,
               storedName: fileItem.storedName,
@@ -712,7 +832,9 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
         }
 
         return res.status(201).json({
-          message: `${createdFiles.length} fichier(s) televerse(s) avec succes.`,
+          message: eventItem.moderationEnabled
+            ? `${createdFiles.length} fichier(s) televerse(s) avec succes. Publication apres moderation.`
+            : `${createdFiles.length} fichier(s) televerse(s) avec succes.`,
           files: createdFiles,
         });
       } catch (err) {
@@ -894,6 +1016,10 @@ router.get('/profile', requireAuth, async (req, res, next) => {
   }
 });
 
+router.get('/profile/events/new', requireAuth, (req, res) => {
+  return renderProfileEventCreateForm(req, res);
+});
+
 router.put('/profile', requireAuth, profileValidators, async (req, res, next) => {
   const result = validationResult(req);
   if (!result.isEmpty()) {
@@ -932,17 +1058,13 @@ router.put('/profile', requireAuth, profileValidators, async (req, res, next) =>
 router.post('/profile/events', requireAuth, eventValidators, async (req, res, next) => {
   const result = validationResult(req);
   if (!result.isEmpty()) {
-    try {
-      return await renderProfile(req, res, {
-        formData: normalizeEventFormData({
-          fullName: req.currentUser.fullName,
-          ...req.body,
-        }),
-        fieldErrors: collectFieldErrors(result),
-      }, 422);
-    } catch (err) {
-      return next(err);
-    }
+    return renderProfileEventCreateForm(req, res, {
+      formData: normalizeEventFormData({
+        fullName: req.currentUser.fullName,
+        ...req.body,
+      }),
+      fieldErrors: collectFieldErrors(result),
+    }, 422);
   }
 
   try {
@@ -956,6 +1078,7 @@ router.post('/profile/events', requireAuth, eventValidators, async (req, res, ne
       slideshowTransition: eventTransitions.normalizeTransitionKey(req.body.slideshowTransition),
       uploadSourceMode: req.body.uploadSourceMode,
       uploadAllowMultiple: parseUploadAllowMultiple(req.body.uploadAllowMultiple),
+      moderationEnabled: parseModerationEnabled(req.body.moderationEnabled),
     });
 
     logger.info(`[EVENT] ${req.currentUser.email} a cree l'evenement ${req.body.name}`);
@@ -998,23 +1121,7 @@ router.get('/profile/events/:id/gallery', requireAuth, param('id').isInt({ min: 
       return renderEventNotFound(res);
     }
 
-    const uploadedFiles = await eventFileStore.listByEvent(editingEvent.id);
-    const galleryFiles = await Promise.all(uploadedFiles.map(async (fileItem) => {
-      const hasXl = await imageVariantService.variantExists(editingEvent.uuid, fileItem.storedName, 'xl');
-      const hasMd = await imageVariantService.variantExists(editingEvent.uuid, fileItem.storedName, 'md');
-      const hasSm = await imageVariantService.variantExists(editingEvent.uuid, fileItem.storedName, 'sm');
-
-      return {
-        ...fileItem,
-        isProcessed: hasSm || hasMd || hasXl,
-        urls: {
-          original: `/profile/events/${editingEvent.id}/photos/${fileItem.storedName}/original`,
-          xl: hasXl ? `/profile/events/${editingEvent.id}/photos/${fileItem.storedName}/xl` : null,
-          md: hasMd ? `/profile/events/${editingEvent.id}/photos/${fileItem.storedName}/md` : null,
-          sm: hasSm ? `/profile/events/${editingEvent.id}/photos/${fileItem.storedName}/sm` : null,
-        },
-      };
-    }));
+    const galleryFiles = await buildOwnerGalleryFiles(editingEvent);
 
     return renderView(res, 'profile-event-gallery', {
       title: `Galerie - ${editingEvent.name}`,
@@ -1040,7 +1147,7 @@ router.get('/profile/events/:id/slideshow', requireAuth, param('id').isInt({ min
       return renderEventNotFound(res);
     }
 
-    const uploadedFiles = await eventFileStore.listByEvent(editingEvent.id);
+    const uploadedFiles = await eventFileStore.listByEventAndStatus(editingEvent.id, 'approved');
     const initialPhotos = uploadedFiles.map((fileItem) => ({
       storedName: fileItem.storedName,
       originalName: fileItem.originalName,
@@ -1061,6 +1168,152 @@ router.get('/profile/events/:id/slideshow', requireAuth, param('id').isInt({ min
     return next(err);
   }
 });
+
+/**
+ * API GET /profile/event/:id/moderation/csrf-token
+ * ⚠️ ROUTE PLUS SPÉCIFIQUE - DOIT ÊTRE AVANT /profile/event/:id/moderation
+ * Retourne un token CSRF frais pour les requêtes AJAX
+ */
+router.get(
+  '/profile/event/:id/moderation/csrf-token',
+  requireAuth,
+  param('id').isInt({ min: 1 }),
+  async (req, res, next) => {
+    const result = validationResult(req);
+    if (!result.isEmpty()) {
+      return res.status(400).json({ error: 'ID d\'événement invalide' });
+    }
+
+    try {
+      const eventId = Number(req.params.id);
+      const editingEvent = await findOwnedEvent(req.currentUser.id, eventId);
+      if (!editingEvent) {
+        return res.status(404).json({ error: 'Événement non trouvé' });
+      }
+
+      // Générer un token CSRF frais
+      const csrfToken = typeof req.csrfToken === 'function' ? req.csrfToken() : '';
+
+      logger.debug(`[CSRF-API] Token frais généré pour event ${eventId}`);
+
+      return res.json({
+        csrfToken: csrfToken,
+        timestamp: new Date().toISOString()
+      });
+    } catch (err) {
+      logger.error(`[CSRF-API] Erreur GET token: ${err.message}`);
+      return res.status(500).json({ error: 'Erreur serveur' });
+    }
+  }
+);
+
+router.get('/profile/event/:id/moderation', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return renderEventNotFound(res);
+  }
+
+  try {
+    const eventId = Number(req.params.id);
+    const editingEvent = await findOwnedEvent(req.currentUser.id, eventId);
+    if (!editingEvent) {
+      return renderEventNotFound(res);
+    }
+
+    const moderationFiles = (await buildOwnerGalleryFiles(editingEvent))
+      .filter((fileItem) => fileItem.moderationStatus === 'pending');
+
+    return renderView(res, 'profile-event-moderation', {
+      title: `Moderation - ${editingEvent.name}`,
+      pageClass: 'page-profile',
+      editingEvent,
+      moderationFiles,
+      footerScriptPaths: ['/socket.io/socket.io.js', '/profile-event-moderation.js'],
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post(
+  '/profile/event/:id/moderation/:fileId',
+  [requireAuth, param('id').isInt({ min: 1 }), param('fileId').isInt({ min: 1 })],
+  async (req, res, next) => {
+    const result = validationResult(req);
+    if (!result.isEmpty()) {
+      return renderEventNotFound(res);
+    }
+
+    try {
+      const eventId = Number(req.params.id);
+      const fileId = Number(req.params.fileId);
+      const moderationStatus = req.body.moderationStatus;
+      if (!eventFileStore.MODERATION_STATUSES.has(moderationStatus)) {
+        req.flash('error', 'Statut de moderation invalide.');
+        return res.redirect(`/profile/event/${eventId}/moderation`);
+      }
+
+      const editingEvent = await findOwnedEvent(req.currentUser.id, eventId);
+      if (!editingEvent) {
+        return renderEventNotFound(res);
+      }
+
+      const existingFile = await eventFileStore.listByEvent(editingEvent.id);
+      const targetFile = existingFile.find((fileItem) => fileItem.id === fileId);
+      if (!targetFile) {
+        return renderEventNotFound(res);
+      }
+
+      const updatedFile = await eventFileStore.updateModerationStatus(fileId, moderationStatus);
+      const io = req.app && req.app.locals ? req.app.locals.io : null;
+
+      if (io) {
+        if (moderationStatus === 'pending') {
+          io.to(`event:${editingEvent.id}:moderation`).emit(
+            'moderation:pending-photo',
+            buildOwnerPhotoRealtimePayload(editingEvent, updatedFile),
+          );
+        } else {
+          io.to(`event:${editingEvent.id}:moderation`).emit('moderation:photo-reviewed', {
+            eventId: editingEvent.id,
+            fileId: updatedFile.id,
+            storedName: updatedFile.storedName,
+            moderationStatus,
+          });
+        }
+      }
+
+      if (isFileApprovedForDisplay(updatedFile)) {
+        if (io) {
+          io.to(`event:${editingEvent.id}:slideshow`).emit('slideshow:new-photo', {
+            eventId: editingEvent.id,
+            storedName: updatedFile.storedName,
+            originalName: updatedFile.originalName,
+            uploaderName: updatedFile.uploaderName,
+            uploadedAt: updatedFile.createdAt,
+          });
+        }
+      }
+
+      if (req.xhr || (req.headers.accept || '').includes('application/json')) {
+        return res.json({
+          ok: true,
+          file: {
+            id: updatedFile.id,
+            moderationStatus: updatedFile.moderationStatus,
+          },
+        });
+      }
+
+      req.flash('success', moderationStatus === 'approved'
+        ? 'Photo approuvee et visible sur le slideshow.'
+        : (moderationStatus === 'rejected' ? 'Photo rejetee.' : 'Photo remise en attente.'));
+      return res.redirect(`/profile/event/${eventId}/moderation`);
+    } catch (err) {
+      return next(err);
+    }
+  },
+);
 
 router.get(
   '/profile/events/:id/photos/:storedName/:variant(original|xl|md|sm)',
@@ -1131,6 +1384,8 @@ router.put('/profile/events/:id', requireAuth, param('id').isInt({ min: 1 }), ev
       return renderEventNotFound(res);
     }
 
+    const nextModerationEnabled = parseModerationEnabled(req.body.moderationEnabled);
+
     await eventStore.updateEvent(eventId, {
       name: req.body.name,
       description: normalizeEventDescriptionMarkdown(req.body.description),
@@ -1140,10 +1395,19 @@ router.put('/profile/events/:id', requireAuth, param('id').isInt({ min: 1 }), ev
       slideshowTransition: eventTransitions.normalizeTransitionKey(req.body.slideshowTransition),
       uploadSourceMode: req.body.uploadSourceMode,
       uploadAllowMultiple: parseUploadAllowMultiple(req.body.uploadAllowMultiple),
+      moderationEnabled: nextModerationEnabled,
     });
 
+    const autoApprovedCount = await autoApprovePendingFilesIfModerationDisabled(
+      editingEvent,
+      nextModerationEnabled,
+      req.app,
+    );
+
     logger.info(`[EVENT] ${req.currentUser.email} a mis a jour son evenement ${editingEvent.uuid}`);
-    req.flash('success', 'Evenement mis a jour.');
+    req.flash('success', autoApprovedCount > 0
+      ? `Evenement mis a jour. ${autoApprovedCount} photo(s) en attente ont ete automatiquement approuvees.`
+      : 'Evenement mis a jour.');
     return res.redirect('/profile');
   } catch (err) {
     return next(err);
@@ -1254,6 +1518,7 @@ router.get('/admin/events/new', requireAdmin, async (req, res, next) => {
         slideshowTransition: eventTransitions.DEFAULT_EVENT_TRANSITION,
         uploadSourceMode: 'default',
         uploadAllowMultiple: true,
+        moderationEnabled: false,
       },
     });
   } catch (err) {
@@ -1292,6 +1557,7 @@ router.post('/admin/events', requireAdmin, adminEventValidators, async (req, res
       slideshowTransition: eventTransitions.normalizeTransitionKey(req.body.slideshowTransition),
       uploadSourceMode: req.body.uploadSourceMode,
       uploadAllowMultiple: parseUploadAllowMultiple(req.body.uploadAllowMultiple),
+      moderationEnabled: parseModerationEnabled(req.body.moderationEnabled),
     });
 
     logger.info(`[ADMIN] ${req.currentUser.email} a cree un evenement (${req.body.name})`);
@@ -1363,6 +1629,16 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
   }
 
   try {
+    const currentEvent = await eventStore.findById(eventId);
+    if (!currentEvent) {
+      return res.status(404).render('errors/404', {
+        title: 'Evenement introuvable',
+        pageClass: 'page-error',
+      });
+    }
+
+    const nextModerationEnabled = parseModerationEnabled(req.body.moderationEnabled);
+
     const updated = await eventStore.updateEvent(eventId, {
       ownerUserId: Number(req.body.ownerUserId),
       name: req.body.name,
@@ -1373,6 +1649,7 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
       slideshowTransition: eventTransitions.normalizeTransitionKey(req.body.slideshowTransition),
       uploadSourceMode: req.body.uploadSourceMode,
       uploadAllowMultiple: parseUploadAllowMultiple(req.body.uploadAllowMultiple),
+      moderationEnabled: nextModerationEnabled,
     });
 
     if (!updated) {
@@ -1382,8 +1659,16 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
       });
     }
 
+    const autoApprovedCount = await autoApprovePendingFilesIfModerationDisabled(
+      currentEvent,
+      nextModerationEnabled,
+      req.app,
+    );
+
     logger.info(`[ADMIN] ${req.currentUser.email} a mis a jour l'evenement ${updated.uuid}`);
-    req.flash('success', 'Evenement mis a jour.');
+    req.flash('success', autoApprovedCount > 0
+      ? `Evenement mis a jour. ${autoApprovedCount} photo(s) en attente ont ete automatiquement approuvees.`
+      : 'Evenement mis a jour.');
     return res.redirect('/admin');
   } catch (err) {
     return next(err);

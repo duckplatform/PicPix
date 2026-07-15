@@ -62,7 +62,7 @@ describe('Tests applicatifs HTTP', () => {
       const res = await request(app).get('/');
 
       expect(res.status).to.equal(200);
-      expect(res.text).to.include('Bienvenue sur PicPix2');
+      expect(res.text).to.include('Bienvenue sur PicPix');
       expect(res.headers['content-type']).to.match(/text\/html/);
     });
 
@@ -231,10 +231,12 @@ describe('Tests applicatifs HTTP', () => {
       expect(uploadResponse.body.files[0].storedName).to.not.equal('photo-souvenir.jpg');
       expect(uploadResponse.body.files[0].storagePath).to.equal(`events/${createdEvent.uuid}/original/${uploadResponse.body.files[0].storedName}`);
       expect(uploadResponse.body.files[0].checksumSha256).to.match(/^[0-9a-f]{64}$/i);
+      expect(uploadResponse.body.files[0].moderationStatus).to.equal('approved');
 
       const eventFiles = await eventFileStore.listByEvent(createdEvent.id);
       expect(eventFiles).to.have.lengthOf(1);
       expect(eventFiles[0].originalName).to.equal('photo-souvenir.jpg');
+      expect(eventFiles[0].moderationStatus).to.equal('approved');
 
       const storedFilePath = path.join(EVENT_STORAGE_ROOT, createdEvent.uuid, 'original', eventFiles[0].storedName);
       expect(await pathExists(storedFilePath)).to.equal(true);
@@ -481,6 +483,7 @@ describe('Tests applicatifs HTTP', () => {
       expect(events[0].slideshowTransition).to.equal('zoom');
       expect(events[0].uploadSourceMode).to.equal('library_only');
       expect(events[0].uploadAllowMultiple).to.equal(false);
+      expect(events[0].moderationEnabled).to.equal(false);
 
       const eventStoragePath = path.join(EVENT_STORAGE_ROOT, events[0].uuid);
       expect(await pathExists(eventStoragePath)).to.equal(true);
@@ -570,6 +573,202 @@ describe('Tests applicatifs HTTP', () => {
       expect(eventPage.status).to.equal(200);
       expect(eventPage.text).to.include('<strong>public</strong>');
       expect(eventPage.text).to.not.include('alert("x")');
+    });
+
+    it('met en attente les photos d\'un evenement modere jusqu\'a validation via /profile/event/:id/moderation', async () => {
+      const ownerAgent = request.agent(app);
+      const registerPage = await ownerAgent.get('/register');
+      const registerCsrf = extractCsrfToken(registerPage.text);
+
+      await ownerAgent
+        .post('/register')
+        .type('form')
+        .send({
+          _csrf: registerCsrf,
+          fullName: 'Moderateur Event',
+          email: 'moderateur@example.com',
+          password: 'SecurePass123',
+          confirmPassword: 'SecurePass123',
+        })
+        .expect(302);
+
+      const profilePage = await ownerAgent.get('/profile');
+      const profileCsrf = extractCsrfToken(profilePage.text);
+
+      await ownerAgent
+        .post('/profile/events')
+        .type('form')
+        .send({
+          _csrf: profileCsrf,
+          name: 'Evenement modere',
+          description: 'Evenement public avec validation manuelle des photos.',
+          startsAt: '2026-09-01T19:30',
+          status: 'active',
+          moderationEnabled: '1',
+        })
+        .expect(302);
+
+      const owner = await userStore.findByEmail('moderateur@example.com');
+      const [createdEvent] = await eventStore.listByOwner(owner.id);
+      expect(createdEvent.moderationEnabled).to.equal(true);
+
+      const guestAgent = request.agent(app);
+      await registerGuestForEvent(guestAgent, createdEvent.token, 'Visiteur Modere');
+
+      const uploadPage = await guestAgent.get(`/event/${createdEvent.token}/upload`);
+      expect(uploadPage.status).to.equal(200);
+      expect(uploadPage.text).to.include('publiees apres validation');
+      const uploadCsrfToken = extractCsrfToken(uploadPage.text);
+
+      const uploadResponse = await guestAgent
+        .post(`/event/${createdEvent.token}/upload`)
+        .set('x-csrf-token', uploadCsrfToken)
+        .attach('photos', Buffer.from('fake moderated payload'), {
+          filename: 'photo-moderee.jpg',
+          contentType: 'image/jpeg',
+        });
+
+      expect(uploadResponse.status).to.equal(201);
+      expect(uploadResponse.body.message).to.include('Publication apres moderation');
+      expect(uploadResponse.body.files).to.have.lengthOf(1);
+      expect(uploadResponse.body.files[0].moderationStatus).to.equal('pending');
+
+      const pendingFile = uploadResponse.body.files[0];
+
+      const publicGalleryBefore = await guestAgent.get(`/event/${createdEvent.token}/gallery`);
+      expect(publicGalleryBefore.status).to.equal(200);
+      expect(publicGalleryBefore.text).to.include('Aucune photo disponible');
+      expect(publicGalleryBefore.text).to.not.include(pendingFile.storedName);
+
+      const publicMediaBefore = await guestAgent.get(`/event/${createdEvent.token}/media/${pendingFile.storedName}/original`);
+      expect(publicMediaBefore.status).to.equal(404);
+
+      const ownerSlideshowBefore = await ownerAgent.get(`/profile/events/${createdEvent.id}/slideshow`);
+      expect(ownerSlideshowBefore.status).to.equal(200);
+      expect(ownerSlideshowBefore.text).to.not.include(pendingFile.storedName);
+
+      const moderationPage = await ownerAgent.get(`/profile/event/${createdEvent.id}/moderation`);
+      expect(moderationPage.status).to.equal(200);
+      expect(moderationPage.text).to.include('Moderation des photos');
+      expect(moderationPage.text).to.include('photo-moderee.jpg');
+      const moderationCsrf = extractCsrfToken(moderationPage.text);
+
+      await ownerAgent
+        .post(`/profile/event/${createdEvent.id}/moderation/${pendingFile.id}`)
+        .type('form')
+        .send({
+          _csrf: moderationCsrf,
+          moderationStatus: 'approved',
+        })
+        .expect(302);
+
+      const approvedFile = await eventFileStore.findByEventAndStoredName(createdEvent.id, pendingFile.storedName);
+      expect(approvedFile).to.not.equal(null);
+      expect(approvedFile.moderationStatus).to.equal('approved');
+
+      const publicGalleryAfter = await guestAgent.get(`/event/${createdEvent.token}/gallery`);
+      expect(publicGalleryAfter.status).to.equal(200);
+      expect(publicGalleryAfter.text).to.include(`/event/${createdEvent.token}/media/${pendingFile.storedName}/original`);
+
+      const publicMediaAfter = await guestAgent.get(`/event/${createdEvent.token}/media/${pendingFile.storedName}/original`);
+      expect(publicMediaAfter.status).to.equal(200);
+
+      const ownerSlideshowAfter = await ownerAgent.get(`/profile/events/${createdEvent.id}/slideshow`);
+      expect(ownerSlideshowAfter.status).to.equal(200);
+      expect(ownerSlideshowAfter.text).to.include(pendingFile.storedName);
+    });
+
+    it('approuve automatiquement les photos en attente quand la moderation est desactivee', async () => {
+      const ownerAgent = request.agent(app);
+      const registerPage = await ownerAgent.get('/register');
+      const registerCsrf = extractCsrfToken(registerPage.text);
+
+      await ownerAgent
+        .post('/register')
+        .type('form')
+        .send({
+          _csrf: registerCsrf,
+          fullName: 'Toggle Moderation',
+          email: 'toggle@example.com',
+          password: 'SecurePass123',
+          confirmPassword: 'SecurePass123',
+        })
+        .expect(302);
+
+      const profilePage = await ownerAgent.get('/profile');
+      expect(profilePage.status).to.equal(200);
+      const profileCsrf = extractCsrfToken(profilePage.text);
+
+      await ownerAgent
+        .post('/profile/events')
+        .type('form')
+        .send({
+          _csrf: profileCsrf,
+          name: 'Evenement toggle moderation',
+          description: 'Evenement avec bascule de moderation pour publication automatique.',
+          startsAt: '2026-10-01T19:30',
+          status: 'active',
+          moderationEnabled: '1',
+        })
+        .expect(302);
+
+      const owner = await userStore.findByEmail('toggle@example.com');
+      const [createdEvent] = await eventStore.listByOwner(owner.id);
+      expect(createdEvent.moderationEnabled).to.equal(true);
+
+      const profileWithEvent = await ownerAgent.get('/profile');
+      expect(profileWithEvent.status).to.equal(200);
+      expect(profileWithEvent.text).to.include(`/profile/events/${createdEvent.id}/slideshow`);
+      expect(profileWithEvent.text).to.include('Slideshow');
+
+      const guestAgent = request.agent(app);
+      await registerGuestForEvent(guestAgent, createdEvent.token, 'Visiteur Toggle');
+
+      const uploadPage = await guestAgent.get(`/event/${createdEvent.token}/upload`);
+      const uploadCsrfToken = extractCsrfToken(uploadPage.text);
+
+      const uploadResponse = await guestAgent
+        .post(`/event/${createdEvent.token}/upload`)
+        .set('x-csrf-token', uploadCsrfToken)
+        .attach('photos', Buffer.from('pending payload'), {
+          filename: 'pending-before-toggle.jpg',
+          contentType: 'image/jpeg',
+        });
+
+      expect(uploadResponse.status).to.equal(201);
+      const pendingFile = uploadResponse.body.files[0];
+      expect(pendingFile.moderationStatus).to.equal('pending');
+
+      const editPage = await ownerAgent.get(`/profile/events/${createdEvent.id}/edit`);
+      const editCsrf = extractCsrfToken(editPage.text);
+
+      await ownerAgent
+        .post(`/profile/events/${createdEvent.id}?_method=PUT`)
+        .type('form')
+        .send({
+          _csrf: editCsrf,
+          name: createdEvent.name,
+          description: createdEvent.description,
+          startsAt: new Date(createdEvent.startsAt).toISOString().slice(0, 16),
+          status: 'active',
+          theme: createdEvent.theme,
+          slideshowTransition: createdEvent.slideshowTransition,
+          uploadSourceMode: createdEvent.uploadSourceMode,
+          uploadAllowMultiple: createdEvent.uploadAllowMultiple ? '1' : undefined,
+          // moderationEnabled absent => false (checkbox decochee)
+        })
+        .expect(302);
+
+      const updatedEvent = await eventStore.findById(createdEvent.id);
+      expect(updatedEvent.moderationEnabled).to.equal(false);
+
+      const approvedFile = await eventFileStore.findByEventAndStoredName(createdEvent.id, pendingFile.storedName);
+      expect(approvedFile).to.not.equal(null);
+      expect(approvedFile.moderationStatus).to.equal('approved');
+
+      const publicGalleryAfter = await guestAgent.get(`/event/${createdEvent.token}/gallery`);
+      expect(publicGalleryAfter.status).to.equal(200);
+      expect(publicGalleryAfter.text).to.include(`/event/${createdEvent.token}/media/${pendingFile.storedName}/original`);
     });
 
     it('permet a un utilisateur d\'activer, modifier, regenerer le token et supprimer son evenement', async () => {
@@ -892,7 +1091,7 @@ describe('Tests applicatifs HTTP', () => {
       const res = await request(app).get('/');
 
       expect(res.status).to.equal(200);
-      expect(res.text).to.include('Bienvenue sur PicPix2');
+      expect(res.text).to.include('Bienvenue sur PicPix');
     });
 
     it('les autres pages retournent 503', async () => {

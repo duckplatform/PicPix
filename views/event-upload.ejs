@@ -5,6 +5,9 @@
     <p class="eyebrow">Depot de photos</p>
     <p>Bonjour <strong><%= guestName %></strong>. Vous pouvez envoyer vos photos de l'evenement ici.</p>
     <p>Cette interface est optimisee smartphone : galerie, prise de vue et envois multiples.</p>
+    <% if (uploadOptions.moderationEnabled) { %>
+      <p>Les photos envoyees seront publiees apres validation par l'organisateur.</p>
+    <% } %>
   </div>
 
   <input type="hidden" id="upload-csrf" name="_csrf" value="<%= csrfToken %>" />

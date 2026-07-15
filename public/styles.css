@@ -332,6 +332,71 @@ p {
   align-items: center;
 }
 
+.moderation-actions {
+  margin-top: 10px;
+  justify-content: center;
+  gap: 10px;
+}
+
+.event-gallery-card .moderation-actions {
+  padding: 0 10px 10px;
+  margin-top: 2px;
+}
+
+.moderation-icon-btn {
+  width: 40px;
+  height: 40px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #1f2937;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+}
+
+.moderation-icon-btn:hover {
+  transform: translateY(-2px) scale(1.03);
+}
+
+.moderation-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.25), 0 10px 20px rgba(15, 23, 42, 0.16);
+}
+
+.moderation-icon-btn svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.moderation-icon-btn-approve {
+  color: #0f766e;
+  border-color: rgba(15, 118, 110, 0.35);
+  background: linear-gradient(180deg, #f0fdfa 0%, #dcfce7 100%);
+}
+
+.moderation-icon-btn-approve:hover {
+  color: #115e59;
+  border-color: rgba(15, 118, 110, 0.55);
+  box-shadow: 0 12px 22px rgba(15, 118, 110, 0.24);
+}
+
+.moderation-icon-btn-reject {
+  color: #b42318;
+  border-color: rgba(180, 35, 24, 0.35);
+  background: linear-gradient(180deg, #fff5f5 0%, #ffe4e6 100%);
+}
+
+.moderation-icon-btn-reject:hover {
+  color: #912018;
+  border-color: rgba(180, 35, 24, 0.55);
+  box-shadow: 0 12px 22px rgba(180, 35, 24, 0.24);
+}
+
 .flash-stack {
   display: grid;
   gap: 12px;

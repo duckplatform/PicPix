@@ -79,6 +79,9 @@ function normalizeRow(row) {
     uploadAllowMultiple: row.uploadAllowMultiple !== undefined
       ? Boolean(row.uploadAllowMultiple)
       : (row.upload_allow_multiple !== undefined ? Boolean(row.upload_allow_multiple) : true),
+    moderationEnabled: row.moderationEnabled !== undefined
+      ? Boolean(row.moderationEnabled)
+      : (row.moderation_enabled !== undefined ? Boolean(row.moderation_enabled) : false),
     token: row.token,
     createdAt: row.createdAt || row.created_at,
     updatedAt: row.updatedAt || row.updated_at,
@@ -124,6 +127,7 @@ async function listByOwner(ownerUserId) {
       slideshow_transition AS slideshowTransition,
         upload_source_mode AS uploadSourceMode,
         upload_allow_multiple AS uploadAllowMultiple,
+        moderation_enabled AS moderationEnabled,
         token,
            created_at AS createdAt, updated_at AS updatedAt
     FROM events
@@ -157,6 +161,7 @@ async function listAll() {
       e.slideshow_transition AS slideshowTransition,
         e.upload_source_mode AS uploadSourceMode,
         e.upload_allow_multiple AS uploadAllowMultiple,
+       e.moderation_enabled AS moderationEnabled,
         e.token,
            e.created_at AS createdAt, e.updated_at AS updatedAt
     FROM events e
@@ -189,6 +194,7 @@ async function findById(eventId) {
       e.slideshow_transition AS slideshowTransition,
         e.upload_source_mode AS uploadSourceMode,
         e.upload_allow_multiple AS uploadAllowMultiple,
+       e.moderation_enabled AS moderationEnabled,
         e.token,
            e.created_at AS createdAt, e.updated_at AS updatedAt
     FROM events e
@@ -222,6 +228,7 @@ async function findByToken(token) {
       e.slideshow_transition AS slideshowTransition,
         e.upload_source_mode AS uploadSourceMode,
         e.upload_allow_multiple AS uploadAllowMultiple,
+       e.moderation_enabled AS moderationEnabled,
         e.token,
            e.created_at AS createdAt, e.updated_at AS updatedAt
     FROM events e
@@ -243,6 +250,7 @@ async function createEvent({
   slideshowTransition = 'fade',
   uploadSourceMode = 'default',
   uploadAllowMultiple = true,
+  moderationEnabled = false,
   token,
 }) {
   const eventToken = token || await generateUniqueToken();
@@ -271,6 +279,7 @@ async function createEvent({
       slideshowTransition,
       uploadSourceMode,
       uploadAllowMultiple: Boolean(uploadAllowMultiple),
+      moderationEnabled: Boolean(moderationEnabled),
       token: eventToken,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -285,10 +294,10 @@ async function createEvent({
     const [result] = await pool.query(`
       INSERT INTO events (
         uuid, owner_user_id, name, description, starts_at, status,
-        theme, slideshow_transition, upload_source_mode, upload_allow_multiple, token
+        theme, slideshow_transition, upload_source_mode, upload_allow_multiple, moderation_enabled, token
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [eventUuid, ownerUserId, name, description, startsAt, status, theme, slideshowTransition, uploadSourceMode, uploadAllowMultiple ? 1 : 0, eventToken]);
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [eventUuid, ownerUserId, name, description, startsAt, status, theme, slideshowTransition, uploadSourceMode, uploadAllowMultiple ? 1 : 0, moderationEnabled ? 1 : 0, eventToken]);
 
     return findById(result.insertId);
   } catch (err) {
@@ -322,6 +331,9 @@ async function updateEvent(eventId, payload) {
     uploadAllowMultiple: payload.uploadAllowMultiple !== undefined
       ? Boolean(payload.uploadAllowMultiple)
       : current.uploadAllowMultiple,
+    moderationEnabled: payload.moderationEnabled !== undefined
+      ? Boolean(payload.moderationEnabled)
+      : current.moderationEnabled,
     token: payload.token || current.token,
   };
 
@@ -353,7 +365,7 @@ async function updateEvent(eventId, payload) {
     await pool.query(`
       UPDATE events
       SET owner_user_id = ?, name = ?, description = ?, starts_at = ?, status = ?,
-          theme = ?, slideshow_transition = ?, upload_source_mode = ?, upload_allow_multiple = ?, token = ?, updated_at = CURRENT_TIMESTAMP
+          theme = ?, slideshow_transition = ?, upload_source_mode = ?, upload_allow_multiple = ?, moderation_enabled = ?, token = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [
       nextData.ownerUserId,
@@ -365,6 +377,7 @@ async function updateEvent(eventId, payload) {
       nextData.slideshowTransition,
       nextData.uploadSourceMode,
       nextData.uploadAllowMultiple ? 1 : 0,
+      nextData.moderationEnabled ? 1 : 0,
       nextData.token,
       current.id,
     ]);
