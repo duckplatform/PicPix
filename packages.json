@@ -1,5 +1,5 @@
 {
-  "name": "picpix2",
+  "name": "picpix",
   "version": "1.0.0",
   "description": "Site de recolte/projection de photo lors d'evenement",
   "main": "app.js",

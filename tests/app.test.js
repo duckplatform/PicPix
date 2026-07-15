@@ -62,7 +62,7 @@ describe('Tests applicatifs HTTP', () => {
       const res = await request(app).get('/');
 
       expect(res.status).to.equal(200);
-      expect(res.text).to.include('Bienvenue sur PicPix2');
+      expect(res.text).to.include('Bienvenue sur PicPix');
       expect(res.headers['content-type']).to.match(/text\/html/);
     });
 
@@ -1091,7 +1091,7 @@ describe('Tests applicatifs HTTP', () => {
       const res = await request(app).get('/');
 
       expect(res.status).to.equal(200);
-      expect(res.text).to.include('Bienvenue sur PicPix2');
+      expect(res.text).to.include('Bienvenue sur PicPix');
     });
 
     it('les autres pages retournent 503', async () => {

@@ -115,7 +115,7 @@ INSERT INTO users (
 ) VALUES (
 	'admin@example.com',
 	'$2a$12$/7YSCPHVP47Yr0Si/xDAoO2GEKG08iXxm6X4OzO/gYLymjEICIkly',
-	'Administrateur PicPix2',
+	'Administrateur PicPix',
 	'admin',
 	'active',
 	NULL

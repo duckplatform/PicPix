@@ -75,7 +75,7 @@ function renderEventDescriptionMarkdown(value) {
 
 function renderView(res, view, payload = {}, status = 200) {
   return res.status(status).render(view, {
-    title: 'PicPix2',
+    title: 'PicPix',
     pageClass: '',
     formData: {},
     fieldErrors: {},
