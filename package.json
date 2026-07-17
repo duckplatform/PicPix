@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node app.js",
     "dev": "nodemon app.js",
+    "lint": "eslint .",
     "test": "NODE_ENV=test EVENT_STORAGE_ROOT=storage-test/events mocha tests/**/*.test.js --timeout 10000 --exit",
     "db:reset": "bash .devcontainer/reset-db.sh"
   },
@@ -41,7 +42,9 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "chai": "^4.3.10",
+    "eslint": "^9.39.5",
     "mocha": "^11.7.5",
     "nodemon": "^3.0.2",
     "sinon": "^17.0.1",

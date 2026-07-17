@@ -73,3 +73,13 @@ npm test
 ```
 
 Les tests HTTP utilisent un stockage memoire isole en environnement de test pour verifier inscription, connexion, profil et CRUD administrateur sans dependre de MySQL.
+
+Executer le linter:
+
+```bash
+npm run lint
+```
+
+## Integration continue
+
+Un workflow GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) execute automatiquement le lint et la suite de tests sur chaque push vers `main` et sur chaque pull request. Aucune base MySQL n'est necessaire pour ces verifications : la suite de tests fonctionne entierement en memoire.
