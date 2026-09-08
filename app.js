@@ -110,7 +110,7 @@ const {
   csrfSynchronisedProtection,
 } = csrfSync({
   // Lit le token depuis le corps de la requête ou les headers
-  getTokenFromRequest: (req) => req.body._csrf || req.headers['x-csrf-token'],
+  getTokenFromRequest: (req) => (req.body && req.body._csrf) || req.headers['x-csrf-token'],
 });
 
 // Rend csrfToken() disponible dans les routes via req.csrfToken()
