@@ -674,10 +674,11 @@ router.get('/event/:token/gallery', param('token').trim().matches(/^[A-Za-z0-9]{
 });
 
 router.get(
-  '/event/:token/media/:storedName/:variant(original|xl|md|sm)',
+  '/event/:token/media/:storedName/:variant',
   [
     param('token').trim().matches(/^[A-Za-z0-9]{10}$/),
     param('storedName').trim().matches(/^[0-9a-f-]{36}\.[a-z0-9]{1,10}$/i),
+    param('variant').trim().matches(/^(original|xl|md|sm)$/),
   ],
   async (req, res, next) => {
     const result = validationResult(req);
@@ -1316,11 +1317,12 @@ router.post(
 );
 
 router.get(
-  '/profile/events/:id/photos/:storedName/:variant(original|xl|md|sm)',
+  '/profile/events/:id/photos/:storedName/:variant',
   [
     requireAuth,
     param('id').isInt({ min: 1 }),
     param('storedName').trim().matches(/^[0-9a-f-]{36}\.[a-z0-9]{1,10}$/i),
+    param('variant').trim().matches(/^(original|xl|md|sm)$/),
   ],
   async (req, res, next) => {
     const result = validationResult(req);
@@ -1923,11 +1925,12 @@ router.delete('/admin/users/:id', requireAdmin, param('id').isInt({ min: 1 }), a
 });
 
 router.get(
-  '/admin/events/:id/photos/:storedName/:variant(original|xl|md|sm)',
+  '/admin/events/:id/photos/:storedName/:variant',
   [
     requireAdmin,
     param('id').isInt({ min: 1 }),
     param('storedName').trim().matches(/^[0-9a-f-]{36}\.[a-z0-9]{1,10}$/i),
+    param('variant').trim().matches(/^(original|xl|md|sm)$/),
   ],
   async (req, res, next) => {
     const result = validationResult(req);
