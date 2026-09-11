@@ -1,7 +1,7 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=$HOME/picpix.fr/
+    - export DEPLOYPATH=$HOME/picpix/
     - /bin/rm $DEPLOYPATH/* -Rf
     - /bin/cp -R * $DEPLOYPATH
     - source $HOME/nodevenv/lan/24/bin/activate && cd $DEPLOYPATH
