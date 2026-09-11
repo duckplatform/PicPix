@@ -34,3 +34,6 @@ sessions/
 # Stockage physique des fichiers evenement
 storage/
 storage-test/
+
+.claude/
+CLAUDE.md
