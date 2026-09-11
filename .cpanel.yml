@@ -6,7 +6,6 @@ deployment:
     - /bin/cp -R * $DEPLOYPATH
     - source $HOME/nodevenv/lan/24/bin/activate && cd $DEPLOYPATH
     - npm install
-    - npm ci
     - npm run lint
     - npm test
     - mkdir -p tmp
