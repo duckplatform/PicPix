@@ -4,7 +4,7 @@ deployment:
     - export DEPLOYPATH=$HOME/picpix/
     - /bin/rm $DEPLOYPATH/* -Rf
     - /bin/cp -R * $DEPLOYPATH
-    - source $HOME/nodevenv/lan/24/bin/activate && cd $DEPLOYPATH
+    - source $HOME/nodevenv/picpix/24/bin/activate && cd $DEPLOYPATH
     - npm install
     - npm run lint
     - npm test
