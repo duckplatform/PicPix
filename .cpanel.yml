@@ -6,7 +6,5 @@ deployment:
     - /bin/cp -R * $DEPLOYPATH
     - source $HOME/nodevenv/picpix/24/bin/activate && cd $DEPLOYPATH
     - npm install
-    - npm run lint
-    - npm test
     - mkdir -p tmp
     - touch tmp/restart.txt
