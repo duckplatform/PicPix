@@ -16,8 +16,11 @@ const eventTransitions = require('../config/eventTransitions');
 const eventThemes = require('../config/eventThemes');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const eventArchiveService = require('../services/eventArchiveService');
+const eventArchiveRequestStore = require('../services/eventArchiveRequestStore');
 const eventFileStore = require('../services/eventFileStore');
 const imageVariantService = require('../services/imageVariantService');
+const mailService = require('../services/mailService');
+const settingsStore = require('../services/settingsStore');
 const userStore = require('../services/userStore');
 const eventStore = require('../services/eventStore');
 
@@ -130,6 +133,15 @@ function getCookieValue(req, cookieName) {
 
 function getEventGuestName(req, token) {
   const value = getCookieValue(req, eventGuestCookieName(token));
+  return value ? value.trim() : '';
+}
+
+function eventArchiveRequestCookieName(token) {
+  return `event_archive_request_${token}`;
+}
+
+function getEventArchiveRequestEmail(req, token) {
+  const value = getCookieValue(req, eventArchiveRequestCookieName(token));
   return value ? value.trim() : '';
 }
 
@@ -427,6 +439,18 @@ const eventGuestRegistrationValidators = [
     .isLength({ min: 2, max: 120 }).withMessage('Le nom doit contenir entre 2 et 120 caracteres.'),
 ];
 
+const eventArchiveRequestValidators = [
+  body('wantsArchive')
+    .optional({ values: 'falsy' })
+    .isIn(['1']).withMessage('Valeur invalide.'),
+  body('email')
+    .if(body('wantsArchive').equals('1'))
+    .trim()
+    .isEmail().withMessage('Adresse email invalide.')
+    .isLength({ max: 190 }).withMessage('Adresse email trop longue.')
+    .normalizeEmail(),
+];
+
 function toDateTimeLocal(value) {
   if (!value) {
     return '';
@@ -642,6 +666,7 @@ router.get('/event/:token', param('token').trim().matches(/^[A-Za-z0-9]{10}$/), 
       nowIso: new Date().toISOString(),
       eventStartsAtIso: hasValidStartDate ? startsAtDate.toISOString() : null,
       shouldShowCountdown,
+      archiveRequestEmail: getEventArchiveRequestEmail(req, req.params.token),
     });
   } catch (err) {
     return next(err);
@@ -985,6 +1010,93 @@ router.post('/event/:token/register', param('token').trim().matches(/^[A-Za-z0-9
     });
 
     return res.redirect(`/event/${req.params.token}`);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * Opt-in "recevoir l'archive photos par email" depuis la page evenement.
+ * Persiste en base (pour la notification a la cloture) ET en cookie (pour que
+ * l'invite revoie son choix, sans reinterroger la base a chaque affichage).
+ */
+router.post('/event/:token/archive-request', param('token').trim().matches(/^[A-Za-z0-9]{10}$/), eventArchiveRequestValidators, async (req, res, next) => {
+  const result = validationResult(req);
+  try {
+    const eventItem = await loadEventByTokenOr404(req, res);
+    if (!eventItem) {
+      return undefined;
+    }
+
+    const guestName = getEventGuestName(req, req.params.token);
+    if (!guestName) {
+      return res.redirect(`/event/${req.params.token}/register`);
+    }
+
+    if (!result.isEmpty()) {
+      req.flash('error', Object.values(collectFieldErrors(result))[0]);
+      return res.redirect(`/event/${req.params.token}`);
+    }
+
+    const wantsArchive = req.body.wantsArchive === '1';
+    const previousEmail = getEventArchiveRequestEmail(req, req.params.token);
+    const cookieOptions = {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: `/event/${req.params.token}`,
+    };
+
+    if (wantsArchive) {
+      const email = req.body.email.trim().toLowerCase();
+
+      if (previousEmail && previousEmail !== email) {
+        await eventArchiveRequestStore.removeRequest(eventItem.id, previousEmail);
+      }
+
+      await eventArchiveRequestStore.upsertRequest(eventItem.id, email);
+      res.cookie(eventArchiveRequestCookieName(req.params.token), email, {
+        ...cookieOptions,
+        maxAge: 30 * 24 * 60 * 60 * 1000,
+      });
+
+      req.flash('success', `Vous recevrez l'archive des photos a ${email} des sa generation.`);
+    } else {
+      if (previousEmail) {
+        await eventArchiveRequestStore.removeRequest(eventItem.id, previousEmail);
+      }
+
+      res.clearCookie(eventArchiveRequestCookieName(req.params.token), { path: cookieOptions.path });
+      req.flash('success', 'Vous ne recevrez pas l\'archive par email.');
+    }
+
+    return res.redirect(`/event/${req.params.token}`);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * Telechargement public de l'archive ZIP via le lien envoye par email.
+ * Aucune verification du cookie invite : ce lien peut etre ouvert sur un autre
+ * appareil que celui utilise pour s'inscrire a l'evenement.
+ */
+router.get('/event/:token/archive', param('token').trim().matches(/^[A-Za-z0-9]{10}$/), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return res.status(404).render('errors/404', {
+      title: 'Evenement introuvable',
+      pageClass: 'page-error',
+    });
+  }
+
+  try {
+    const eventItem = await loadEventByTokenOr404(req, res);
+    if (!eventItem) {
+      return undefined;
+    }
+
+    return sendEventArchive(req, res, next, eventItem, `/event/${req.params.token}`);
   } catch (err) {
     return next(err);
   }
@@ -1696,6 +1808,30 @@ router.get('/admin', requireAdmin, async (req, res, next) => {
       users,
       events,
     });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get('/admin/settings', requireAdmin, async (req, res, next) => {
+  try {
+    const mailNotificationsEnabled = await settingsStore.getBoolSetting('mail_archive_notifications_enabled', false);
+    return renderView(res, 'admin/settings', {
+      title: 'Reglages',
+      pageClass: 'page-admin',
+      mailNotificationsEnabled,
+      mailEnvConfigured: mailService.isEnvConfigured(),
+    });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.post('/admin/settings', requireAdmin, async (req, res, next) => {
+  try {
+    await settingsStore.setBoolSetting('mail_archive_notifications_enabled', req.body.mailNotificationsEnabled === '1');
+    req.flash('success', 'Reglages mis a jour.');
+    return res.redirect('/admin/settings');
   } catch (err) {
     return next(err);
   }

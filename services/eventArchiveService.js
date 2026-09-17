@@ -20,6 +20,7 @@ const path = require('path');
 const logger = require('../config/logger');
 const eventStore = require('./eventStore');
 const eventFileStore = require('./eventFileStore');
+const archiveNotificationService = require('./archiveNotificationService');
 
 const queue = [];
 let isProcessing = false;
@@ -176,6 +177,10 @@ async function processOne(eventId) {
     });
 
     logger.info(`[ARCHIVE] Archive prete pour ${eventItem.uuid} (${photoCount} photo(s), ${sizeBytes} octets)`);
+
+    await archiveNotificationService.notifyArchiveRequesters(eventItem).catch((err) => {
+      logger.error(`[ARCHIVE] Notification mail echouee pour ${eventItem.uuid}: ${err.message}`);
+    });
   } catch (err) {
     await eventStore.updateArchiveState(eventItem.id, {
       archiveStatus: 'failed',

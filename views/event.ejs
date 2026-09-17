@@ -21,6 +21,46 @@
   </section>
 </section>
 
+<section class="card form-card">
+  <div>
+    <p class="eyebrow">Archive photos</p>
+    <h2>Recevoir l'archive des photos</h2>
+    <p>Cochez cette case pour recevoir par email le lien de telechargement de l'archive complete des photos, des qu'elle sera generee a la cloture de l'evenement.</p>
+  </div>
+
+  <form method="post" action="/event/<%= eventItem.token %>/archive-request" class="form-grid">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <label>
+      <span class="checkbox-label">
+        <input type="checkbox" id="archiveRequestCheckbox" name="wantsArchive" value="1" <%= archiveRequestEmail ? 'checked' : '' %> />
+        Je souhaite recevoir l'archive des photos par email a la fin de l'evenement
+      </span>
+    </label>
+
+    <label id="archiveRequestEmailField" <%= archiveRequestEmail ? '' : 'hidden' %>>
+      <span>Votre email</span>
+      <input type="email" name="email" value="<%= archiveRequestEmail || '' %>" maxlength="190" />
+    </label>
+
+    <button class="btn" type="submit">Enregistrer</button>
+  </form>
+</section>
+
+<script>
+  (function initArchiveRequestForm() {
+    const checkbox = document.getElementById('archiveRequestCheckbox');
+    const emailField = document.getElementById('archiveRequestEmailField');
+    if (!checkbox || !emailField) {
+      return;
+    }
+
+    checkbox.addEventListener('change', () => {
+      emailField.hidden = !checkbox.checked;
+    });
+  }());
+</script>
+
 <script>
   (function initEventStatus() {
     const startsAtIso = '<%= eventStartsAtIso || '' %>';

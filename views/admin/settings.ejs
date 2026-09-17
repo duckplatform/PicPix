@@ -1,0 +1,42 @@
+<%- include('../partials/head') %>
+<%- include('../partials/header') %>
+<section class="card admin-header">
+  <div>
+    <p class="eyebrow">Administration</p>
+    <h1>Reglages</h1>
+    <p>Parametres globaux de l'application.</p>
+  </div>
+  <div class="table-actions">
+    <a class="btn btn-secondary" href="/admin">Retour au tableau de bord</a>
+  </div>
+</section>
+
+<section class="card form-card">
+  <h2>Notifications email</h2>
+  <p>
+    Lorsqu'un evenement est cloture definitivement et que son archive ZIP est
+    prete, les invites ayant demande a la recevoir peuvent etre notifies par
+    email avec le lien de telechargement.
+  </p>
+
+  <% if (!mailEnvConfigured) { %>
+    <p class="field-error">
+      Aucun serveur SMTP n'est configure (variable SMTP_HOST manquante) : meme
+      activee, cette option n'enverra aucun email.
+    </p>
+  <% } %>
+
+  <form method="post" action="/admin/settings" class="form-grid">
+    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+
+    <label>
+      <span class="checkbox-label">
+        <input type="checkbox" name="mailNotificationsEnabled" value="1" <%= mailNotificationsEnabled ? 'checked' : '' %> />
+        Envoyer automatiquement l'archive ZIP par email aux inscrits lors de la cloture d'un evenement
+      </span>
+    </label>
+
+    <button class="btn" type="submit">Enregistrer</button>
+  </form>
+</section>
+<%- include('../partials/footer') %>
