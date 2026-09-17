@@ -130,7 +130,8 @@
                               type="button"
                               data-close-event-trigger
                               data-event-id="<%= eventItem.id %>"
-                              data-event-name="<%= eventItem.name %>">Cloturer</button>
+                              data-event-name="<%= eventItem.name %>"
+                              data-pending-count="<%= eventItem.pendingModerationCount || 0 %>">Cloturer</button>
                     <% } %>
                     <form method="post" action="/profile/events/<%= eventItem.id %>?_method=DELETE" class="inline-form" onsubmit="return confirm('Supprimer cet evenement ? Cette action supprimera aussi toutes les donnees stockees de cet evenement.');">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -152,12 +153,29 @@
   <div class="modal-card">
     <h2 id="close-event-modal-title">Cloturer definitivement l'evenement</h2>
     <p>Vous etes sur le point de cloturer <strong id="close-event-modal-name"></strong>.</p>
-    <ul class="modal-warning-list">
+
+    <!-- Etat bloque : il reste des photos non moderees, qui seraient perdues -->
+    <div id="close-event-blocked" hidden>
+      <p class="modal-danger-note">
+        Cloture impossible : <strong id="close-event-pending-count"></strong> attendent encore votre moderation.
+      </p>
+      <p>
+        Une photo non moderee n'apparait ni dans la galerie ni dans l'archive ZIP,
+        et la moderation devient inaccessible une fois l'evenement cloture :
+        elle serait <strong>definitivement perdue</strong>.
+      </p>
+      <div class="table-actions">
+        <button class="btn btn-secondary" type="button" data-close-event-dismiss>Fermer</button>
+        <a class="btn" id="close-event-moderation-link" href="#">Aller a la moderation</a>
+      </div>
+    </div>
+
+    <ul class="modal-warning-list" id="close-event-consequences">
       <li>Les visiteurs ne pourront <strong>plus envoyer de photos</strong>.</li>
       <li>L'evenement ne pourra <strong>plus etre modifie, reactive ni reouvert</strong>.</li>
       <li>Une archive ZIP de toutes les photos sera preparee en arriere-plan.</li>
     </ul>
-    <p class="modal-danger-note">Cette action est <strong>irreversible</strong>.</p>
+    <p class="modal-danger-note" id="close-event-irreversible-note">Cette action est <strong>irreversible</strong>.</p>
 
     <form method="post" id="close-event-form" class="form-grid">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />

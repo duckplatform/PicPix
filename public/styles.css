@@ -1563,3 +1563,9 @@ dd {
   background: rgba(15, 23, 42, 0.08);
   font-weight: 700;
 }
+
+/* `display: grid` sur .form-grid/label prime sur l'attribut hidden : on force
+   le masquage des sections que la popup bascule (bloque / confirmation). */
+.modal-card [hidden] {
+  display: none !important;
+}

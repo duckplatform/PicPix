@@ -139,6 +139,30 @@ async function listByEventAndStatus(eventId, moderationStatus) {
   return rows.map(normalizeRow);
 }
 
+/**
+ * Nombre de fichiers d'un evenement dans un statut de moderation donne.
+ * Utilise pour bloquer la cloture tant qu'il reste des photos en attente.
+ */
+async function countByEventAndStatus(eventId, moderationStatus) {
+  if (!MODERATION_STATUSES.has(moderationStatus)) {
+    return 0;
+  }
+
+  if (useTestStore()) {
+    return testFiles
+      .filter((item) => item.eventId === Number(eventId) && item.moderationStatus === moderationStatus)
+      .length;
+  }
+
+  const [rows] = await pool.query(`
+    SELECT COUNT(*) AS total
+    FROM event_files
+    WHERE event_id = ? AND moderation_status = ?
+  `, [eventId, moderationStatus]);
+
+  return Number(rows[0].total);
+}
+
 async function findByEventAndStoredName(eventId, storedName) {
   if (useTestStore()) {
     const found = testFiles.find((item) => item.eventId === Number(eventId) && item.storedName === storedName);
@@ -219,6 +243,7 @@ function resetTestState() {
 }
 
 module.exports = {
+  countByEventAndStatus,
   createFileRecord,
   findByEventAndStoredName,
   listByEvent,

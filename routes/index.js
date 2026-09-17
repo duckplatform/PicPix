@@ -451,10 +451,20 @@ async function findOwnedEvent(userId, eventId) {
 
 async function renderProfile(req, res, payload = {}, status = 200) {
   const events = await eventStore.listByOwner(req.currentUser.id);
+
+  // Le dashboard a besoin du nombre de photos non moderees pour savoir s'il
+  // peut proposer la cloture (celle-ci est bloquee tant qu'il en reste).
+  const eventsWithPendingCount = await Promise.all(events.map(async (eventItem) => ({
+    ...eventItem,
+    pendingModerationCount: eventItem.status === 'closed'
+      ? 0
+      : await eventFileStore.countByEventAndStatus(eventItem.id, 'pending'),
+  })));
+
   return renderView(res, 'profile', {
     title: 'Mon profil',
     pageClass: 'page-profile',
-    userEvents: events,
+    userEvents: eventsWithPendingCount,
     footerScriptPaths: ['/profile-event-close.js'],
     formData: {
       fullName: req.currentUser.fullName,
@@ -1557,6 +1567,16 @@ router.post('/profile/events/:id/close', requireAuth, param('id').isInt({ min: 1
     if (req.body.confirmClose !== 'CLOTURER') {
       req.flash('error', 'Cloture annulee : la confirmation est obligatoire.');
       return res.redirect('/profile');
+    }
+
+    // Une photo restee 'pending' n'entrerait ni dans la galerie ni dans
+    // l'archive, et la moderation devient inaccessible apres cloture : elle
+    // serait perdue. On exige donc que tout soit tranche avant de figer.
+    const pendingCount = await eventFileStore.countByEventAndStatus(eventId, 'pending');
+    if (pendingCount > 0) {
+      req.flash('error', `Cloture impossible : ${pendingCount} photo(s) attendent encore votre moderation. `
+        + 'Approuvez-les ou rejetez-les avant de cloturer, sinon elles seraient definitivement perdues.');
+      return res.redirect(`/profile/event/${eventId}/moderation`);
     }
 
     const closedEvent = await eventStore.closeEvent(eventId);

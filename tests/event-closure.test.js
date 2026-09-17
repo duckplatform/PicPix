@@ -216,6 +216,62 @@ describe('Cloture definitive d\'un evenement', () => {
     expect(forced.status).to.equal('closed');
   });
 
+  it('bloque la cloture tant que des photos attendent la moderation', async () => {
+    const createdEvent = await eventStore.createEvent({
+      ownerUserId: owner.id,
+      name: 'Soiree avec moderation',
+      description: 'Un evenement dont les photos passent par la moderation.',
+      startsAt: '2099-06-01T19:00:00',
+      status: 'active',
+      moderationEnabled: true,
+    });
+
+    await uploadPhoto(createdEvent, 'photo-en-attente.jpg');
+    expect(await eventFileStore.countByEventAndStatus(createdEvent.id, 'pending')).to.equal(1);
+
+    const agent = request.agent(app);
+    await loginAsDefaultAdmin(agent);
+
+    const closeResponse = await closeEventViaHttp(agent, createdEvent);
+    expect(closeResponse.status).to.equal(302);
+    expect(closeResponse.headers.location).to.equal(`/profile/event/${createdEvent.id}/moderation`);
+
+    const stillOpen = await eventStore.findById(createdEvent.id);
+    expect(stillOpen.status).to.equal('active');
+    expect(stillOpen.archiveStatus).to.equal('none');
+  });
+
+  it('autorise la cloture une fois la moderation terminee, et archive les photos approuvees', async () => {
+    const createdEvent = await eventStore.createEvent({
+      ownerUserId: owner.id,
+      name: 'Soiree moderee',
+      description: 'Un evenement dont les photos sont moderees avant cloture.',
+      startsAt: '2099-06-01T19:00:00',
+      status: 'active',
+      moderationEnabled: true,
+    });
+
+    await uploadPhoto(createdEvent, 'photo-gardee.jpg');
+    await uploadPhoto(createdEvent, 'photo-rejetee.jpg');
+
+    const pendingFiles = await eventFileStore.listByEventAndStatus(createdEvent.id, 'pending');
+    expect(pendingFiles).to.have.lengthOf(2);
+
+    await eventFileStore.updateModerationStatus(pendingFiles[0].id, 'approved');
+    await eventFileStore.updateModerationStatus(pendingFiles[1].id, 'rejected');
+
+    const agent = request.agent(app);
+    await loginAsDefaultAdmin(agent);
+
+    const closeResponse = await closeEventViaHttp(agent, createdEvent);
+    expect(closeResponse.headers.location).to.equal('/profile');
+
+    const closedEvent = await waitForArchive(createdEvent.id);
+    expect(closedEvent.archiveStatus).to.equal('ready');
+    // Seule la photo approuvee entre dans l'archive ; la rejetee est ecartee.
+    expect(closedEvent.archivePhotoCount).to.equal(1);
+  });
+
   it('refuse les nouveaux uploads visiteurs sur un evenement cloture', async () => {
     const createdEvent = await createActiveEvent('Soiree fermee aux uploads');
 

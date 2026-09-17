@@ -10,10 +10,37 @@
   const submitBtn = document.getElementById('close-event-submit');
   const cancelBtn = document.getElementById('close-event-cancel');
 
+  // Etat "bloque" : des photos attendent encore la moderation.
+  const blockedEl = document.getElementById('close-event-blocked');
+  const pendingCountEl = document.getElementById('close-event-pending-count');
+  const moderationLink = document.getElementById('close-event-moderation-link');
+  const consequencesEl = document.getElementById('close-event-consequences');
+  const irreversibleNote = document.getElementById('close-event-irreversible-note');
+
   // Mot-cle attendu : doit correspondre a la verification serveur.
   const CONFIRM_KEYWORD = 'CLOTURER';
 
   let lastTrigger = null;
+
+  /**
+   * Bascule la popup entre le formulaire de confirmation et l'ecran de blocage.
+   * Le serveur refuse de toute facon une cloture avec des photos en attente :
+   * cet ecran evite simplement a l'organisateur un aller-retour inutile.
+   */
+  function applyBlockedState(pendingCount) {
+    const isBlocked = pendingCount > 0;
+
+    blockedEl.toggleAttribute('hidden', !isBlocked);
+    form.toggleAttribute('hidden', isBlocked);
+    consequencesEl.toggleAttribute('hidden', isBlocked);
+    irreversibleNote.toggleAttribute('hidden', isBlocked);
+
+    if (isBlocked) {
+      pendingCountEl.textContent = pendingCount + ' photo' + (pendingCount > 1 ? 's' : '');
+    }
+
+    return isBlocked;
+  }
 
   function closeModal() {
     if (!modal) {
@@ -37,19 +64,28 @@
       return;
     }
 
+    const eventId = trigger.dataset.eventId;
+    const pendingCount = Number(trigger.dataset.pendingCount || 0);
+
     lastTrigger = trigger;
-    form.action = '/profile/events/' + trigger.dataset.eventId + '/close';
+    form.action = '/profile/events/' + eventId + '/close';
+    moderationLink.href = '/profile/event/' + eventId + '/moderation';
     nameEl.textContent = trigger.dataset.eventName || 'cet evenement';
     confirmInput.value = '';
     submitBtn.disabled = true;
 
+    const isBlocked = applyBlockedState(pendingCount);
+
     modal.removeAttribute('hidden');
     modal.setAttribute('aria-hidden', 'false');
     document.body.style.overflow = 'hidden';
-    confirmInput.focus();
+
+    if (!isBlocked) {
+      confirmInput.focus();
+    }
   }
 
-  if (modal && form && confirmInput && submitBtn) {
+  if (modal && form && confirmInput && submitBtn && blockedEl && consequencesEl && irreversibleNote) {
     document.querySelectorAll('[data-close-event-trigger]').forEach(function bind(trigger) {
       trigger.addEventListener('click', function onClick() {
         openModal(trigger);
@@ -73,6 +109,10 @@
     });
 
     cancelBtn.addEventListener('click', closeModal);
+
+    document.querySelectorAll('[data-close-event-dismiss]').forEach(function bindDismiss(btn) {
+      btn.addEventListener('click', closeModal);
+    });
 
     modal.addEventListener('click', function onBackdropClick(e) {
       if (e.target === modal) {
