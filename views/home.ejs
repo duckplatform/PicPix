@@ -2,12 +2,12 @@
 <%- include('partials/header') %>
 <section class="hero hero-grid">
   <div>
-    <p class="eyebrow">Gestion securisee des comptes</p>
-    <h1>Bienvenue sur PicPix</h1>
-    <p>Inscription, connexion, profil utilisateur et administration centralisee sont maintenant disponibles.</p>
+    <p class="eyebrow">Photos d'evenement, sans effort</p>
+    <h1>Toutes les photos de votre evenement, reunies au meme endroit</h1>
+    <p>Mariage, anniversaire, soiree entre amis ou seminaire : creez un espace dedie a votre evenement et laissez vos invites y deposer leurs photos depuis leur telephone. Aucune application a installer.</p>
     <div class="hero-actions">
       <% if (!user) { %>
-        <a class="btn" href="/register">Creer un compte</a>
+        <a class="btn" href="/register">Creer mon evenement</a>
         <a class="btn btn-secondary" href="/login">Se connecter</a>
       <% } else { %>
         <a class="btn" href="/profile">Ouvrir mon profil</a>
@@ -18,9 +18,58 @@
     </div>
   </div>
   <aside class="hero-panel">
-    <h2>Surveillance rapide</h2>
-    <p>Le point de sante et les journaux applicatifs restent accessibles pour le monitoring.</p>
-    <a class="btn btn-secondary" href="/health">Verifier la sante de l'application</a>
+    <h2>En 3 etapes</h2>
+    <ol class="hero-steps">
+      <li>Creez votre evenement et obtenez un lien unique a partager.</li>
+      <li>Vos invites envoient leurs photos depuis leur mobile, via l'appareil photo ou leur galerie.</li>
+      <li>Recuperez l'ensemble des photos dans une archive complete, envoyee par email.</li>
+    </ol>
   </aside>
+</section>
+
+<section class="section-gap">
+  <p class="eyebrow">Fonctionnalites</p>
+  <h2>Pense pour vos invites comme pour vous</h2>
+  <div class="grid-columns feature-grid">
+    <div class="card feature-card">
+      <h3>📷 Envoi en un instant</h3>
+      <p>Vos invites prennent une photo ou en choisissent plusieurs depuis leur galerie, directement dans leur navigateur mobile, sans creer de compte.</p>
+    </div>
+    <div class="card feature-card">
+      <h3>🖼️ Galerie et diaporama en direct</h3>
+      <p>Les photos envoyees apparaissent dans une galerie partagee, consultable a tout moment ou projetee en diaporama pendant l'evenement.</p>
+    </div>
+    <div class="card feature-card">
+      <h3>✅ Moderation a la carte</h3>
+      <p>Activez la validation des photos si vous le souhaitez : rien n'apparait dans la galerie sans votre accord.</p>
+    </div>
+    <div class="card feature-card">
+      <h3>📦 Archive complete</h3>
+      <p>A la cloture de l'evenement, une archive ZIP reunissant toutes les photos validees est generee et envoyee par email a ceux qui l'ont demandee.</p>
+    </div>
+    <div class="card feature-card">
+      <h3>🔒 Acces prive</h3>
+      <p>Chaque evenement dispose de son propre lien secret. Seules les personnes qui le recoivent peuvent voir ou deposer des photos.</p>
+    </div>
+    <div class="card feature-card">
+      <h3>📱 Sans installation</h3>
+      <p>Ni vous ni vos invites n'avez besoin d'installer quoi que ce soit : tout se passe dans le navigateur, sur mobile comme sur ordinateur.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section-gap card cta-banner">
+  <div>
+    <p class="eyebrow">Pret a commencer ?</p>
+    <h2>Creez votre evenement en quelques minutes</h2>
+    <p>Donnez-lui un nom, une date, et partagez le lien avec vos invites. Le reste se fait tout seul.</p>
+  </div>
+  <div class="hero-actions">
+    <% if (!user) { %>
+      <a class="btn" href="/register">Creer un compte gratuit</a>
+    <% } else { %>
+      <a class="btn" href="/profile">Creer un nouvel evenement</a>
+    <% } %>
+  </div>
 </section>
 <%- include('partials/footer') %>

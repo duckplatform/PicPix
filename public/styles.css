@@ -431,6 +431,44 @@ p {
   margin-top: 24px;
 }
 
+.hero-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 12px;
+}
+
+.hero-steps li {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.feature-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-top: 18px;
+}
+
+.feature-card h3 {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+}
+
+.feature-card p {
+  margin: 0;
+}
+
+.cta-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+
+.cta-banner .hero-actions {
+  margin-top: 0;
+}
+
 .form-grid {
   display: grid;
   gap: 18px;
@@ -1420,6 +1458,10 @@ dd {
 @media (max-width: 860px) {
   .hero-grid,
   .grid-columns {
+    grid-template-columns: 1fr;
+  }
+
+  .feature-grid {
     grid-template-columns: 1fr;
   }
 
