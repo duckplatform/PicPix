@@ -49,6 +49,10 @@ function eventDerivedStoragePath(eventUuid) {
   return path.join(eventStoragePath(eventUuid), 'derived');
 }
 
+function eventArchiveStoragePath(eventUuid) {
+  return path.join(eventStoragePath(eventUuid), 'archive');
+}
+
 async function ensureEventStorageDirectory(eventUuid) {
   await fs.mkdir(eventOriginalStoragePath(eventUuid), { recursive: true });
   await fs.mkdir(eventDerivedStoragePath(eventUuid), { recursive: true });
@@ -83,6 +87,17 @@ function normalizeRow(row) {
       ? Boolean(row.moderationEnabled)
       : (row.moderation_enabled !== undefined ? Boolean(row.moderation_enabled) : false),
     token: row.token,
+    closedAt: row.closedAt || row.closed_at || null,
+    archiveStatus: row.archiveStatus || row.archive_status || 'none',
+    archiveFile: row.archiveFile || row.archive_file || null,
+    archiveSizeBytes: row.archiveSizeBytes !== undefined && row.archiveSizeBytes !== null
+      ? Number(row.archiveSizeBytes)
+      : (row.archive_size_bytes !== undefined && row.archive_size_bytes !== null ? Number(row.archive_size_bytes) : null),
+    archivePhotoCount: row.archivePhotoCount !== undefined && row.archivePhotoCount !== null
+      ? Number(row.archivePhotoCount)
+      : (row.archive_photo_count !== undefined && row.archive_photo_count !== null ? Number(row.archive_photo_count) : null),
+    archiveError: row.archiveError || row.archive_error || null,
+    archiveGeneratedAt: row.archiveGeneratedAt || row.archive_generated_at || null,
     createdAt: row.createdAt || row.created_at,
     updatedAt: row.updatedAt || row.updated_at,
   };
@@ -129,6 +144,13 @@ async function listByOwner(ownerUserId) {
         upload_allow_multiple AS uploadAllowMultiple,
         moderation_enabled AS moderationEnabled,
         token,
+        closed_at AS closedAt,
+        archive_status AS archiveStatus,
+        archive_file AS archiveFile,
+        archive_size_bytes AS archiveSizeBytes,
+        archive_photo_count AS archivePhotoCount,
+        archive_error AS archiveError,
+        archive_generated_at AS archiveGeneratedAt,
            created_at AS createdAt, updated_at AS updatedAt
     FROM events
     WHERE owner_user_id = ?
@@ -163,6 +185,13 @@ async function listAll() {
         e.upload_allow_multiple AS uploadAllowMultiple,
        e.moderation_enabled AS moderationEnabled,
         e.token,
+        e.closed_at AS closedAt,
+        e.archive_status AS archiveStatus,
+        e.archive_file AS archiveFile,
+        e.archive_size_bytes AS archiveSizeBytes,
+        e.archive_photo_count AS archivePhotoCount,
+        e.archive_error AS archiveError,
+        e.archive_generated_at AS archiveGeneratedAt,
            e.created_at AS createdAt, e.updated_at AS updatedAt
     FROM events e
     INNER JOIN users u ON u.id = e.owner_user_id
@@ -196,6 +225,13 @@ async function findById(eventId) {
         e.upload_allow_multiple AS uploadAllowMultiple,
        e.moderation_enabled AS moderationEnabled,
         e.token,
+        e.closed_at AS closedAt,
+        e.archive_status AS archiveStatus,
+        e.archive_file AS archiveFile,
+        e.archive_size_bytes AS archiveSizeBytes,
+        e.archive_photo_count AS archivePhotoCount,
+        e.archive_error AS archiveError,
+        e.archive_generated_at AS archiveGeneratedAt,
            e.created_at AS createdAt, e.updated_at AS updatedAt
     FROM events e
     INNER JOIN users u ON u.id = e.owner_user_id
@@ -230,6 +266,13 @@ async function findByToken(token) {
         e.upload_allow_multiple AS uploadAllowMultiple,
        e.moderation_enabled AS moderationEnabled,
         e.token,
+        e.closed_at AS closedAt,
+        e.archive_status AS archiveStatus,
+        e.archive_file AS archiveFile,
+        e.archive_size_bytes AS archiveSizeBytes,
+        e.archive_photo_count AS archivePhotoCount,
+        e.archive_error AS archiveError,
+        e.archive_generated_at AS archiveGeneratedAt,
            e.created_at AS createdAt, e.updated_at AS updatedAt
     FROM events e
     INNER JOIN users u ON u.id = e.owner_user_id
@@ -281,6 +324,13 @@ async function createEvent({
       uploadAllowMultiple: Boolean(uploadAllowMultiple),
       moderationEnabled: Boolean(moderationEnabled),
       token: eventToken,
+      closedAt: null,
+      archiveStatus: 'none',
+      archiveFile: null,
+      archiveSizeBytes: null,
+      archivePhotoCount: null,
+      archiveError: null,
+      archiveGeneratedAt: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -324,7 +374,9 @@ async function updateEvent(eventId, payload) {
     name: payload.name || current.name,
     description: payload.description !== undefined ? payload.description : current.description,
     startsAt: payload.startsAt || current.startsAt,
-    status: payload.status || current.status,
+    // La cloture est definitive : aucun payload ne peut faire sortir un
+    // evenement de l'etat 'closed' (cf. closeEvent).
+    status: current.status === 'closed' ? 'closed' : (payload.status || current.status),
     theme: payload.theme || current.theme,
     slideshowTransition: payload.slideshowTransition || current.slideshowTransition,
     uploadSourceMode: payload.uploadSourceMode || current.uploadSourceMode,
@@ -420,6 +472,140 @@ async function deleteEvent(eventId) {
   return true;
 }
 
+/**
+ * Cloture definitivement un evenement.
+ *
+ * Operation terminale : un evenement `closed` ne peut plus revenir a
+ * `active`/`inactive`. L'ecriture est conditionnee en base (`status <> 'closed'`)
+ * pour que deux requetes concurrentes ne puissent pas clore deux fois et
+ * relancer deux generations d'archive.
+ *
+ * @returns {Promise<object|null>} l'evenement clos, ou null si deja clos/introuvable.
+ */
+async function closeEvent(eventId) {
+  const current = await findById(eventId);
+  if (!current || current.status === 'closed') {
+    return null;
+  }
+
+  if (useTestStore()) {
+    testEvents = testEvents.map((eventItem) => {
+      if (eventItem.id !== current.id) {
+        return eventItem;
+      }
+
+      return {
+        ...eventItem,
+        status: 'closed',
+        closedAt: new Date().toISOString(),
+        archiveStatus: 'pending',
+        archiveFile: null,
+        archiveSizeBytes: null,
+        archivePhotoCount: null,
+        archiveError: null,
+        archiveGeneratedAt: null,
+        updatedAt: new Date().toISOString(),
+      };
+    });
+
+    return findById(current.id);
+  }
+
+  const [result] = await pool.query(`
+    UPDATE events
+    SET status = 'closed',
+        closed_at = CURRENT_TIMESTAMP,
+        archive_status = 'pending',
+        archive_file = NULL,
+        archive_size_bytes = NULL,
+        archive_photo_count = NULL,
+        archive_error = NULL,
+        archive_generated_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND status <> 'closed'
+  `, [current.id]);
+
+  if (result.affectedRows === 0) {
+    return null;
+  }
+
+  return findById(current.id);
+}
+
+/**
+ * Met a jour l'etat de generation de l'archive ZIP.
+ * Appele par eventArchiveService, jamais par les routes.
+ */
+async function updateArchiveState(eventId, {
+  archiveStatus,
+  archiveFile = null,
+  archiveSizeBytes = null,
+  archivePhotoCount = null,
+  archiveError = null,
+}) {
+  const generatedAt = archiveStatus === 'ready' ? new Date() : null;
+
+  if (useTestStore()) {
+    testEvents = testEvents.map((eventItem) => {
+      if (eventItem.id !== Number(eventId)) {
+        return eventItem;
+      }
+
+      return {
+        ...eventItem,
+        archiveStatus,
+        archiveFile,
+        archiveSizeBytes,
+        archivePhotoCount,
+        archiveError,
+        archiveGeneratedAt: generatedAt ? generatedAt.toISOString() : null,
+      };
+    });
+
+    return findById(eventId);
+  }
+
+  await pool.query(`
+    UPDATE events
+    SET archive_status = ?, archive_file = ?, archive_size_bytes = ?,
+        archive_photo_count = ?, archive_error = ?, archive_generated_at = ?
+    WHERE id = ?
+  `, [
+    archiveStatus,
+    archiveFile,
+    archiveSizeBytes,
+    archivePhotoCount,
+    archiveError ? String(archiveError).slice(0, 255) : null,
+    generatedAt,
+    eventId,
+  ]);
+
+  return findById(eventId);
+}
+
+/**
+ * Evenements clos dont l'archive est restee `pending` (serveur redemarre en
+ * plein traitement). Utilise au boot pour relancer la generation.
+ */
+async function listPendingArchives() {
+  if (useTestStore()) {
+    return testEvents
+      .filter((eventItem) => eventItem.status === 'closed' && eventItem.archiveStatus === 'pending')
+      .map((eventItem) => normalizeRow({ ...eventItem }));
+  }
+
+  try {
+    const [rows] = await pool.query(`
+      SELECT id, uuid FROM events
+      WHERE status = 'closed' AND archive_status = 'pending'
+    `);
+    return rows.map((row) => ({ id: row.id, uuid: row.uuid }));
+  } catch {
+    // La BDD peut ne pas etre encore disponible au demarrage : on ne bloque pas.
+    return [];
+  }
+}
+
 function resetTestState() {
   testEvents = [];
   nextTestEventId = 1;
@@ -452,6 +638,7 @@ async function ensureAllStorageDirectories() {
 }
 
 module.exports = {
+  closeEvent,
   createEvent,
   deleteEvent,
   ensureAllStorageDirectories,
@@ -459,11 +646,14 @@ module.exports = {
   findByToken,
   getEventStorageRoot: () => EVENT_STORAGE_ROOT,
   generateUniqueToken,
+  getEventArchiveStoragePath: eventArchiveStoragePath,
   getEventDerivedStoragePath: eventDerivedStoragePath,
   getEventOriginalStoragePath: eventOriginalStoragePath,
   getEventStoragePath: eventStoragePath,
   listAll,
   listByOwner,
+  listPendingArchives,
   resetTestState,
+  updateArchiveState,
   updateEvent,
 };

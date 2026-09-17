@@ -72,28 +72,66 @@
               <th>Nom</th>
               <th>Date/heure</th>
               <th>Statut</th>
+              <th>Archive photos</th>
               <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             <% userEvents.forEach((eventItem) => { %>
+              <% const isClosed = eventItem.status === 'closed'; %>
               <tr>
-                <td><%= eventItem.name %></td>
+                <td>
+                  <%= eventItem.name %>
+                  <% if (isClosed && eventItem.closedAt) { %>
+                    <small class="muted-note">Cloture le <%= new Date(eventItem.closedAt).toLocaleString('fr-FR') %></small>
+                  <% } %>
+                </td>
                 <td><%= new Date(eventItem.startsAt).toLocaleString('fr-FR') %></td>
-                <td><span class="badge badge-<%= eventItem.status %>"><%= eventItem.status %></span></td>
+                <td><span class="badge badge-<%= eventItem.status %>"><%= isClosed ? 'cloture' : eventItem.status %></span></td>
+                <td>
+                  <% if (!isClosed) { %>
+                    <span class="muted-note">&mdash;</span>
+                  <% } else { %>
+                    <div class="archive-cell"
+                         data-archive-cell
+                         data-event-id="<%= eventItem.id %>"
+                         data-archive-status="<%= eventItem.archiveStatus %>">
+                      <% if (eventItem.archiveStatus === 'ready') { %>
+                        <a class="btn btn-small" href="/profile/events/<%= eventItem.id %>/archive">Telecharger le ZIP</a>
+                        <small class="muted-note">
+                          <%= eventItem.archivePhotoCount || 0 %> photo(s)<% if (eventItem.archiveSizeBytes) { %> &middot; <%= (eventItem.archiveSizeBytes / (1024 * 1024)).toFixed(1) %> Mo<% } %>
+                        </small>
+                      <% } else if (eventItem.archiveStatus === 'failed') { %>
+                        <span class="archive-failed">La generation de l'archive a echoue. Contactez un administrateur.</span>
+                      <% } else { %>
+                        <span class="archive-pending">
+                          <span class="archive-spinner" aria-hidden="true"></span>
+                          Archive ZIP en cours de preparation&hellip; le lien de telechargement apparaitra ici des qu'elle sera prete.
+                        </span>
+                      <% } %>
+                    </div>
+                  <% } %>
+                </td>
                 <td>
                   <div class="table-actions">
                     <a class="btn btn-small" href="/event/<%= eventItem.token %>" target="_blank" rel="noopener noreferrer">Site</a>
                     <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/slideshow">Slideshow</a>
                     <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/gallery">Galerie</a>
-                    <a class="btn btn-secondary btn-small" href="/profile/event/<%= eventItem.id %>/moderation">Moderation</a>
-                    <% if (eventItem.status !== 'active') { %>
-                      <form method="post" action="/profile/events/<%= eventItem.id %>/activate" class="inline-form">
-                        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                        <button class="btn btn-secondary btn-small" type="submit">Activer</button>
-                      </form>
+                    <% if (!isClosed) { %>
+                      <a class="btn btn-secondary btn-small" href="/profile/event/<%= eventItem.id %>/moderation">Moderation</a>
+                      <% if (eventItem.status !== 'active') { %>
+                        <form method="post" action="/profile/events/<%= eventItem.id %>/activate" class="inline-form">
+                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                          <button class="btn btn-secondary btn-small" type="submit">Activer</button>
+                        </form>
+                      <% } %>
+                      <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/edit">Modifier</a>
+                      <button class="btn btn-danger btn-small"
+                              type="button"
+                              data-close-event-trigger
+                              data-event-id="<%= eventItem.id %>"
+                              data-event-name="<%= eventItem.name %>">Cloturer</button>
                     <% } %>
-                    <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/edit">Modifier</a>
                     <form method="post" action="/profile/events/<%= eventItem.id %>?_method=DELETE" class="inline-form" onsubmit="return confirm('Supprimer cet evenement ? Cette action supprimera aussi toutes les donnees stockees de cet evenement.');">
                       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                       <button class="btn btn-danger btn-small" type="submit">Supprimer</button>
@@ -108,4 +146,31 @@
     <% } %>
   </article>
 </section>
+
+<!-- Popup de confirmation obligatoire avant cloture definitive -->
+<div class="modal-backdrop" id="close-event-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="close-event-modal-title">
+  <div class="modal-card">
+    <h2 id="close-event-modal-title">Cloturer definitivement l'evenement</h2>
+    <p>Vous etes sur le point de cloturer <strong id="close-event-modal-name"></strong>.</p>
+    <ul class="modal-warning-list">
+      <li>Les visiteurs ne pourront <strong>plus envoyer de photos</strong>.</li>
+      <li>L'evenement ne pourra <strong>plus etre modifie, reactive ni reouvert</strong>.</li>
+      <li>Une archive ZIP de toutes les photos sera preparee en arriere-plan.</li>
+    </ul>
+    <p class="modal-danger-note">Cette action est <strong>irreversible</strong>.</p>
+
+    <form method="post" id="close-event-form" class="form-grid">
+      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+      <label>
+        <span>Pour confirmer, saisissez <code>CLOTURER</code></span>
+        <input type="text" name="confirmClose" id="close-event-confirm-input" autocomplete="off" required placeholder="CLOTURER" />
+      </label>
+      <div class="table-actions">
+        <button class="btn btn-secondary" type="button" id="close-event-cancel">Annuler</button>
+        <button class="btn btn-danger" type="submit" id="close-event-submit" disabled>Cloturer definitivement</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <%- include('partials/footer') %>

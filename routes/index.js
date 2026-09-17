@@ -15,6 +15,7 @@ const logger = require('../config/logger');
 const eventTransitions = require('../config/eventTransitions');
 const eventThemes = require('../config/eventThemes');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const eventArchiveService = require('../services/eventArchiveService');
 const eventFileStore = require('../services/eventFileStore');
 const imageVariantService = require('../services/imageVariantService');
 const userStore = require('../services/userStore');
@@ -132,7 +133,7 @@ function getEventGuestName(req, token) {
   return value ? value.trim() : '';
 }
 
-function buildEventSiteNav(token, guestName, eventName, themeKey) {
+function buildEventSiteNav(token, guestName, eventName, themeKey, isClosed = false) {
   return {
     token,
     guestName: (guestName || 'Visiteur').trim().slice(0, 120),
@@ -140,7 +141,8 @@ function buildEventSiteNav(token, guestName, eventName, themeKey) {
     eventTheme: eventThemes.getTheme(themeKey),
     eventUrl: `/event/${token}`,
     galleryUrl: `/event/${token}/gallery`,
-    uploadUrl: `/event/${token}/upload`,
+    // Evenement cloture : le lien d'upload disparait de la navigation.
+    uploadUrl: isClosed ? null : `/event/${token}/upload`,
   };
 }
 
@@ -453,6 +455,7 @@ async function renderProfile(req, res, payload = {}, status = 200) {
     title: 'Mon profil',
     pageClass: 'page-profile',
     userEvents: events,
+    footerScriptPaths: ['/profile-event-close.js'],
     formData: {
       fullName: req.currentUser.fullName,
       eventStatus: 'inactive',
@@ -472,6 +475,58 @@ function renderEventNotFound(res) {
     title: 'Evenement introuvable',
     pageClass: 'page-error',
   });
+}
+
+function isEventClosed(eventItem) {
+  return Boolean(eventItem) && eventItem.status === 'closed';
+}
+
+/**
+ * Refuse une action de modification sur un evenement clos.
+ * La cloture est definitive : on ne propose aucune reouverture.
+ */
+function rejectClosedEvent(req, res, redirectTo = '/profile') {
+  req.flash('error', 'Cet evenement est cloture definitivement : il ne peut plus etre modifie.');
+  return res.redirect(redirectTo);
+}
+
+/** Vue publique de l'archive telle qu'exposee au dashboard proprietaire. */
+function buildArchiveViewModel(eventItem) {
+  return {
+    status: eventItem.archiveStatus || 'none',
+    photoCount: eventItem.archivePhotoCount,
+    sizeBytes: eventItem.archiveSizeBytes,
+    generatedAt: eventItem.archiveGeneratedAt,
+    downloadUrl: eventItem.archiveStatus === 'ready'
+      ? `/profile/events/${eventItem.id}/archive`
+      : null,
+  };
+}
+
+/**
+ * Sert le ZIP d'un evenement clos.
+ * Le lien n'est valide que si l'archive est marquee `ready` ET presente sur
+ * disque : on ne sert jamais une archive partielle.
+ */
+async function sendEventArchive(req, res, next, eventItem, redirectTo) {
+  if (eventItem.archiveStatus !== 'ready' || !(await eventArchiveService.archiveExists(eventItem.uuid))) {
+    req.flash('error', eventItem.archiveStatus === 'failed'
+      ? 'La generation de l\'archive a echoue. Contactez un administrateur.'
+      : 'L\'archive n\'est pas encore prete. Reessayez dans quelques instants.');
+    return res.redirect(redirectTo);
+  }
+
+  return res.download(
+    eventArchiveService.getArchivePath(eventItem.uuid),
+    eventArchiveService.buildDownloadFileName(eventItem),
+    (sendErr) => {
+      if (!sendErr || res.headersSent) {
+        return;
+      }
+
+      next(sendErr);
+    },
+  );
 }
 
 function renderProfileEventCreateForm(req, res, payload = {}, status = 200) {
@@ -572,7 +627,7 @@ router.get('/event/:token', param('token').trim().matches(/^[A-Za-z0-9]{10}$/), 
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
-      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme),
+      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
       renderedDescriptionHtml: renderEventDescriptionMarkdown(eventItem.description),
       nowIso: new Date().toISOString(),
       eventStartsAtIso: hasValidStartDate ? startsAtDate.toISOString() : null,
@@ -603,12 +658,17 @@ router.get('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{1
       return res.redirect(`/event/${req.params.token}/register`);
     }
 
+    // Evenement cloture : plus d'envoi possible, on renvoie vers la galerie.
+    if (isEventClosed(eventItem)) {
+      return res.redirect(`/event/${req.params.token}/gallery`);
+    }
+
     return renderView(res, 'event-upload', {
       title: `${eventItem.name} - Upload photos`,
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
-      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme),
+      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
       uploadOptions: {
         sourceMode: eventItem.uploadSourceMode,
         allowMultiple: eventItem.uploadAllowMultiple,
@@ -665,7 +725,7 @@ router.get('/event/:token/gallery', param('token').trim().matches(/^[A-Za-z0-9]{
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
-      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme),
+      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
       galleryFiles,
     });
   } catch (err) {
@@ -754,6 +814,10 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
     const guestName = getEventGuestName(req, req.params.token);
     if (!guestName) {
       return res.status(403).json({ message: 'Inscription visiteur requise avant upload.' });
+    }
+
+    if (isEventClosed(eventItem)) {
+      return res.status(403).json({ message: 'Cet evenement est cloture : les envois de photos sont termines.' });
     }
 
     const eventUploadMiddleware = createEventUploadMiddleware(eventItem.uploadAllowMultiple ? 10 : 1);
@@ -874,7 +938,7 @@ router.get('/event/:token/register', param('token').trim().matches(/^[A-Za-z0-9]
       title: `${eventItem.name} - Inscription`,
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
-      eventSiteNav: buildEventSiteNav(req.params.token, null, eventItem.name, eventItem.theme),
+      eventSiteNav: buildEventSiteNav(req.params.token, null, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
       formData: { guestName: '' },
     });
   } catch (err) {
@@ -895,7 +959,7 @@ router.post('/event/:token/register', param('token').trim().matches(/^[A-Za-z0-9
         title: `${eventItem.name} - Inscription`,
         pageClass: buildEventPageClass(eventItem.theme),
         eventItem,
-        eventSiteNav: buildEventSiteNav(req.params.token, req.body.guestName || '', eventItem.name, eventItem.theme),
+        eventSiteNav: buildEventSiteNav(req.params.token, req.body.guestName || '', eventItem.name, eventItem.theme, isEventClosed(eventItem)),
         formData: { guestName: req.body.guestName || '' },
         fieldErrors: collectFieldErrors(result),
       }, 422);
@@ -1103,6 +1167,10 @@ router.get('/profile/events/:id/edit', requireAuth, param('id').isInt({ min: 1 }
       return renderEventNotFound(res);
     }
 
+    if (isEventClosed(editingEvent)) {
+      return rejectClosedEvent(req, res);
+    }
+
     return renderProfileEventForm(req, res, editingEvent);
   } catch (err) {
     return next(err);
@@ -1259,6 +1327,12 @@ router.post(
         return renderEventNotFound(res);
       }
 
+      // Apres cloture l'archive ZIP est deja figee : moderer encore
+      // desynchroniserait la galerie et l'archive remise a l'organisateur.
+      if (isEventClosed(editingEvent)) {
+        return rejectClosedEvent(req, res, `/profile/event/${eventId}/moderation`);
+      }
+
       const existingFile = await eventFileStore.listByEvent(editingEvent.id);
       const targetFile = existingFile.find((fileItem) => fileItem.id === fileId);
       if (!targetFile) {
@@ -1386,6 +1460,10 @@ router.put('/profile/events/:id', requireAuth, param('id').isInt({ min: 1 }), ev
       return renderEventNotFound(res);
     }
 
+    if (isEventClosed(editingEvent)) {
+      return rejectClosedEvent(req, res);
+    }
+
     const nextModerationEnabled = parseModerationEnabled(req.body.moderationEnabled);
 
     await eventStore.updateEvent(eventId, {
@@ -1429,6 +1507,10 @@ router.post('/profile/events/:id/activate', requireAuth, param('id').isInt({ min
       return renderEventNotFound(res);
     }
 
+    if (isEventClosed(editingEvent)) {
+      return rejectClosedEvent(req, res);
+    }
+
     if (editingEvent.status !== 'active') {
       await eventStore.updateEvent(eventId, { status: 'active' });
       logger.info(`[EVENT] ${req.currentUser.email} a active son evenement ${editingEvent.uuid}`);
@@ -1438,6 +1520,97 @@ router.post('/profile/events/:id/activate', requireAuth, param('id').isInt({ min
     }
 
     return res.redirect('/profile');
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * Cloture DEFINITIVE d'un evenement.
+ *
+ * Pas de retour arriere : l'evenement passe en `closed`, les uploads visiteurs
+ * sont refuses et la generation du ZIP des photos est mise en file d'attente.
+ * Le lien de telechargement n'apparait sur le dashboard qu'une fois l'archive
+ * reellement ecrite sur disque (archive_status = 'ready').
+ */
+router.post('/profile/events/:id/close', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return renderEventNotFound(res);
+  }
+
+  try {
+    const eventId = Number(req.params.id);
+    const editingEvent = await findOwnedEvent(req.currentUser.id, eventId);
+    if (!editingEvent) {
+      return renderEventNotFound(res);
+    }
+
+    if (isEventClosed(editingEvent)) {
+      req.flash('error', 'Cet evenement est deja cloture.');
+      return res.redirect('/profile');
+    }
+
+    // Le champ de confirmation est genere par la popup : sans lui, on refuse.
+    // Cela garantit qu'aucune cloture ne peut partir d'un simple lien ou d'un
+    // double-submit accidentel.
+    if (req.body.confirmClose !== 'CLOTURER') {
+      req.flash('error', 'Cloture annulee : la confirmation est obligatoire.');
+      return res.redirect('/profile');
+    }
+
+    const closedEvent = await eventStore.closeEvent(eventId);
+    if (!closedEvent) {
+      req.flash('error', 'Cet evenement est deja cloture.');
+      return res.redirect('/profile');
+    }
+
+    eventArchiveService.enqueueArchiveGeneration(closedEvent.id);
+
+    logger.info(`[EVENT] ${req.currentUser.email} a cloture definitivement l'evenement ${closedEvent.uuid}`);
+    req.flash('success', 'Evenement cloture definitivement. L\'archive ZIP des photos est en cours de preparation.');
+    return res.redirect('/profile');
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * Etat de l'archive (JSON) : interroge par le dashboard tant que le ZIP
+ * n'est pas pret, pour remplacer le message d'attente par le lien.
+ */
+router.get('/profile/events/:id/archive/status', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return res.status(400).json({ error: 'Identifiant d\'evenement invalide.' });
+  }
+
+  try {
+    const eventItem = await findOwnedEvent(req.currentUser.id, Number(req.params.id));
+    if (!eventItem) {
+      return res.status(404).json({ error: 'Evenement introuvable.' });
+    }
+
+    return res.json(buildArchiveViewModel(eventItem));
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** Telechargement de l'archive ZIP par le proprietaire de l'evenement. */
+router.get('/profile/events/:id/archive', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return renderEventNotFound(res);
+  }
+
+  try {
+    const eventItem = await findOwnedEvent(req.currentUser.id, Number(req.params.id));
+    if (!eventItem) {
+      return renderEventNotFound(res);
+    }
+
+    return sendEventArchive(req, res, next, eventItem, '/profile');
   } catch (err) {
     return next(err);
   }
@@ -1454,6 +1627,10 @@ router.post('/profile/events/:id/regenerate-token', requireAuth, param('id').isI
     const editingEvent = await findOwnedEvent(req.currentUser.id, eventId);
     if (!editingEvent) {
       return renderEventNotFound(res);
+    }
+
+    if (isEventClosed(editingEvent)) {
+      return rejectClosedEvent(req, res);
     }
 
     const newToken = await eventStore.generateUniqueToken();
@@ -1588,6 +1765,10 @@ router.get('/admin/events/:id/edit', requireAdmin, param('id').isInt({ min: 1 })
       });
     }
 
+    if (isEventClosed(editingEvent)) {
+      return rejectClosedEvent(req, res, '/admin');
+    }
+
     const users = await userStore.listUsers();
     const eventFiles = await eventFileStore.listByEvent(editingEvent.id);
     return renderView(res, 'admin/event-form', {
@@ -1639,6 +1820,10 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
       });
     }
 
+    if (isEventClosed(currentEvent)) {
+      return rejectClosedEvent(req, res, '/admin');
+    }
+
     const nextModerationEnabled = parseModerationEnabled(req.body.moderationEnabled);
 
     const updated = await eventStore.updateEvent(eventId, {
@@ -1677,6 +1862,28 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
   }
 });
 
+/**
+ * Telechargement de l'archive ZIP depuis l'interface d'administration.
+ * Meme garde-fou que cote organisateur : archive `ready` et presente sur disque.
+ */
+router.get('/admin/events/:id/archive', requireAdmin, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return renderEventNotFound(res);
+  }
+
+  try {
+    const eventItem = await eventStore.findById(Number(req.params.id));
+    if (!eventItem) {
+      return renderEventNotFound(res);
+    }
+
+    return sendEventArchive(req, res, next, eventItem, '/admin');
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.post('/admin/events/:id/regenerate-token', requireAdmin, param('id').isInt({ min: 1 }), async (req, res, next) => {
   const result = validationResult(req);
   if (!result.isEmpty()) {
@@ -1688,6 +1895,10 @@ router.post('/admin/events/:id/regenerate-token', requireAdmin, param('id').isIn
     const editingEvent = await eventStore.findById(eventId);
     if (!editingEvent) {
       return renderEventNotFound(res);
+    }
+
+    if (isEventClosed(editingEvent)) {
+      return rejectClosedEvent(req, res, '/admin');
     }
 
     const newToken = await eventStore.generateUniqueToken();

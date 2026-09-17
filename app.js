@@ -18,6 +18,7 @@ const methodOverride = require('method-override');
 const { csrfSync }   = require('csrf-sync');
 const { Server }     = require('socket.io');
 const eventStore     = require('./services/eventStore');
+const eventArchiveService = require('./services/eventArchiveService');
 
 const logger             = require('./config/logger');
 const { testConnection } = require('./config/database');
@@ -305,6 +306,10 @@ async function startServer() {
     // Crée les dossiers de stockage manquants pour les événements pré-existants
     void eventStore.ensureAllStorageDirectories().catch((err) => {
       logger.warn('[SERVER] ensureAllStorageDirectories :', err.message);
+    });
+    // Relance les archives ZIP interrompues par un redemarrage du serveur.
+    void eventArchiveService.resumePendingArchives().catch((err) => {
+      logger.warn('[SERVER] resumePendingArchives :', err.message);
     });
   } catch (err) {
     logger.error(`[SERVER] Impossible de demarrer : ${err.message}`);

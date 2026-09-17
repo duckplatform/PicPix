@@ -9,7 +9,9 @@
         <nav class="nav-links nav-links-event" aria-label="Navigation evenement">
           <span class="event-links-left">
             <a href="<%= eventSiteNav.eventUrl %>">Evenement</a>
-            <a href="<%= eventSiteNav.uploadUrl %>">Upload</a>
+            <% if (eventSiteNav.uploadUrl) { %>
+              <a href="<%= eventSiteNav.uploadUrl %>">Upload</a>
+            <% } %>
             <a href="<%= eventSiteNav.galleryUrl %>">Galerie</a>
           </span>
           <span class="event-user-chip" title="<%= eventSiteNav.guestName %>">
