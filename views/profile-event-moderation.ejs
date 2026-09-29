@@ -36,7 +36,7 @@
           <div class="event-gallery-meta">
             <strong><%= fileItem.originalName %></strong>
             <small>En attente d'approbation</small>
-            <small>Par <%= fileItem.uploaderName || 'Visiteur' %> · <%= new Date(fileItem.createdAt).toLocaleString('fr-FR') %></small>
+            <small>Par <%= fileItem.uploaderName || 'Visiteur' %> · <%= formatDateTime(fileItem.createdAt) %></small>
           </div>
           <div class="table-actions moderation-actions">
             <form method="post" action="/profile/event/<%= editingEvent.id %>/moderation/<%= fileItem.id %>" class="inline-form js-moderation-action-form" data-file-id="<%= fileItem.id %>">

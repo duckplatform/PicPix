@@ -3,7 +3,7 @@
 <section class="hero countdown-layout">
   <p class="eyebrow">Evenement public</p>
   <div class="richtext-content"><%- renderedDescriptionHtml %></div>
-  <p>Debut: <strong><%= new Date(eventItem.startsAt).toLocaleString('fr-FR') %></strong></p>
+  <p>Debut: <strong><%= formatDateTime(eventItem.startsAt) %></strong></p>
   <div class="hero-actions">
     <a class="btn" href="/event/<%= eventItem.token %>/upload">Deposer des photos</a>
     <a class="btn btn-secondary" href="/event/<%= eventItem.token %>/gallery">Voir la galerie</a>

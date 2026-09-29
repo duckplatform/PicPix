@@ -5,6 +5,7 @@ const fs = require('fs/promises');
 const path = require('path');
 
 const { pool } = require('../config/database');
+const { parseAppDateTime } = require('../config/timezone');
 const userStore = require('./userStore');
 
 const TOKEN_ALPHABET = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -298,6 +299,8 @@ async function createEvent({
 }) {
   const eventToken = token || await generateUniqueToken();
   const eventUuid = crypto.randomUUID();
+  // Heure murale du formulaire -> instant UTC (cf. config/timezone).
+  const startsAtDate = parseAppDateTime(startsAt);
 
   await ensureEventStorageDirectory(eventUuid);
 
@@ -316,7 +319,7 @@ async function createEvent({
       ownerUserId: Number(ownerUserId),
       name,
       description,
-      startsAt,
+      startsAt: startsAtDate ? startsAtDate.toISOString() : startsAt,
       status,
       theme,
       slideshowTransition,
@@ -347,7 +350,7 @@ async function createEvent({
         theme, slideshow_transition, upload_source_mode, upload_allow_multiple, moderation_enabled, token
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `, [eventUuid, ownerUserId, name, description, startsAt, status, theme, slideshowTransition, uploadSourceMode, uploadAllowMultiple ? 1 : 0, moderationEnabled ? 1 : 0, eventToken]);
+    `, [eventUuid, ownerUserId, name, description, startsAtDate || startsAt, status, theme, slideshowTransition, uploadSourceMode, uploadAllowMultiple ? 1 : 0, moderationEnabled ? 1 : 0, eventToken]);
 
     return findById(result.insertId);
   } catch (err) {
@@ -363,20 +366,38 @@ async function createEvent({
   }
 }
 
+function eventClosedError() {
+  const closedError = new Error('EVENT_CLOSED');
+  closedError.code = 'EVENT_CLOSED';
+  return closedError;
+}
+
+/**
+ * Met a jour un evenement non clos.
+ *
+ * La cloture est definitive : un evenement `closed` n'est plus modifiable.
+ * La garde est portee par l'UPDATE lui-meme (`status <> 'closed'`) et non par
+ * la lecture prealable, pour qu'une requete ayant lu l'evenement juste avant
+ * une cloture concurrente ne puisse pas le rouvrir.
+ *
+ * @throws {Error} code EVENT_CLOSED si l'evenement est (ou vient d'etre) clos.
+ */
 async function updateEvent(eventId, payload) {
   const current = await findById(eventId);
   if (!current) {
     return null;
   }
 
+  if (current.status === 'closed') {
+    throw eventClosedError();
+  }
+
   const nextData = {
     ownerUserId: payload.ownerUserId || current.ownerUserId,
     name: payload.name || current.name,
     description: payload.description !== undefined ? payload.description : current.description,
-    startsAt: payload.startsAt || current.startsAt,
-    // La cloture est definitive : aucun payload ne peut faire sortir un
-    // evenement de l'etat 'closed' (cf. closeEvent).
-    status: current.status === 'closed' ? 'closed' : (payload.status || current.status),
+    startsAt: payload.startsAt ? (parseAppDateTime(payload.startsAt) || payload.startsAt) : current.startsAt,
+    status: payload.status || current.status,
     theme: payload.theme || current.theme,
     slideshowTransition: payload.slideshowTransition || current.slideshowTransition,
     uploadSourceMode: payload.uploadSourceMode || current.uploadSourceMode,
@@ -406,6 +427,7 @@ async function updateEvent(eventId, payload) {
         ...eventItem,
         ownerUserId: Number(nextData.ownerUserId),
         ...nextData,
+        startsAt: nextData.startsAt instanceof Date ? nextData.startsAt.toISOString() : nextData.startsAt,
         updatedAt: new Date().toISOString(),
       };
     });
@@ -414,11 +436,11 @@ async function updateEvent(eventId, payload) {
   }
 
   try {
-    await pool.query(`
+    const [result] = await pool.query(`
       UPDATE events
       SET owner_user_id = ?, name = ?, description = ?, starts_at = ?, status = ?,
           theme = ?, slideshow_transition = ?, upload_source_mode = ?, upload_allow_multiple = ?, moderation_enabled = ?, token = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ?
+      WHERE id = ? AND status <> 'closed'
     `, [
       nextData.ownerUserId,
       nextData.name,
@@ -433,6 +455,16 @@ async function updateEvent(eventId, payload) {
       nextData.token,
       current.id,
     ]);
+
+    if (result.affectedRows === 0) {
+      // Cloture (ou suppression) concurrente depuis la lecture de `current`.
+      const latest = await findById(current.id);
+      if (latest && latest.status === 'closed') {
+        throw eventClosedError();
+      }
+
+      return latest;
+    }
 
     return findById(current.id);
   } catch (err) {
@@ -473,6 +505,25 @@ async function deleteEvent(eventId) {
 }
 
 /**
+ * Supprime tous les evenements d'un proprietaire, stockage disque compris.
+ * A appeler avant la suppression d'un utilisateur : la cascade SQL
+ * (fk_events_owner_user) supprimerait les lignes mais laisserait les photos.
+ * @returns {Promise<number>} nombre d'evenements supprimes
+ */
+async function deleteEventsByOwner(ownerUserId) {
+  const ownedEvents = await listByOwner(ownerUserId);
+  let deletedCount = 0;
+
+  for (const eventItem of ownedEvents) {
+    if (await deleteEvent(eventItem.id)) {
+      deletedCount += 1;
+    }
+  }
+
+  return deletedCount;
+}
+
+/**
  * Cloture definitivement un evenement.
  *
  * Operation terminale : un evenement `closed` ne peut plus revenir a
@@ -480,7 +531,12 @@ async function deleteEvent(eventId) {
  * pour que deux requetes concurrentes ne puissent pas clore deux fois et
  * relancer deux generations d'archive.
  *
+ * Elle est aussi conditionnee a l'absence de photo `pending` dans le meme
+ * UPDATE : une photo arrivee en moderation entre la verification de la route
+ * et la cloture serait sinon perdue (moderation inaccessible apres cloture).
+ *
  * @returns {Promise<object|null>} l'evenement clos, ou null si deja clos/introuvable.
+ * @throws {Error} code EVENT_PENDING_MODERATION s'il reste des photos a moderer.
  */
 async function closeEvent(eventId) {
   const current = await findById(eventId);
@@ -488,7 +544,19 @@ async function closeEvent(eventId) {
     return null;
   }
 
+  const pendingModerationError = () => {
+    const pendingError = new Error('EVENT_PENDING_MODERATION');
+    pendingError.code = 'EVENT_PENDING_MODERATION';
+    return pendingError;
+  };
+
   if (useTestStore()) {
+    // Chargement differe pour eviter un cycle de require avec eventFileStore.
+    const pendingCount = await require('./eventFileStore').countByEventAndStatus(current.id, 'pending');
+    if (pendingCount > 0) {
+      throw pendingModerationError();
+    }
+
     testEvents = testEvents.map((eventItem) => {
       if (eventItem.id !== current.id) {
         return eventItem;
@@ -523,9 +591,18 @@ async function closeEvent(eventId) {
         archive_generated_at = NULL,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND status <> 'closed'
-  `, [current.id]);
+      AND NOT EXISTS (
+        SELECT 1 FROM event_files
+        WHERE event_id = ? AND moderation_status = 'pending'
+      )
+  `, [current.id, current.id]);
 
   if (result.affectedRows === 0) {
+    const latest = await findById(current.id);
+    if (latest && latest.status !== 'closed') {
+      throw pendingModerationError();
+    }
+
     return null;
   }
 
@@ -585,7 +662,8 @@ async function updateArchiveState(eventId, {
 
 /**
  * Evenements clos dont l'archive est restee `pending` (serveur redemarre en
- * plein traitement). Utilise au boot pour relancer la generation.
+ * plein traitement). Appele des que la base est disponible pour relancer la
+ * generation ; les erreurs remontent a l'appelant pour etre journalisees.
  */
 async function listPendingArchives() {
   if (useTestStore()) {
@@ -594,16 +672,11 @@ async function listPendingArchives() {
       .map((eventItem) => normalizeRow({ ...eventItem }));
   }
 
-  try {
-    const [rows] = await pool.query(`
-      SELECT id, uuid FROM events
-      WHERE status = 'closed' AND archive_status = 'pending'
-    `);
-    return rows.map((row) => ({ id: row.id, uuid: row.uuid }));
-  } catch {
-    // La BDD peut ne pas etre encore disponible au demarrage : on ne bloque pas.
-    return [];
-  }
+  const [rows] = await pool.query(`
+    SELECT id, uuid FROM events
+    WHERE status = 'closed' AND archive_status = 'pending'
+  `);
+  return rows.map((row) => ({ id: row.id, uuid: row.uuid }));
 }
 
 function resetTestState() {
@@ -641,6 +714,7 @@ module.exports = {
   closeEvent,
   createEvent,
   deleteEvent,
+  deleteEventsByOwner,
   ensureAllStorageDirectories,
   findById,
   findByToken,

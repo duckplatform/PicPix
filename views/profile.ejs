@@ -83,10 +83,10 @@
                 <td>
                   <%= eventItem.name %>
                   <% if (isClosed && eventItem.closedAt) { %>
-                    <small class="muted-note">Cloture le <%= new Date(eventItem.closedAt).toLocaleString('fr-FR') %></small>
+                    <small class="muted-note">Cloture le <%= formatDateTime(eventItem.closedAt) %></small>
                   <% } %>
                 </td>
-                <td><%= new Date(eventItem.startsAt).toLocaleString('fr-FR') %></td>
+                <td><%= formatDateTime(eventItem.startsAt) %></td>
                 <td><span class="badge badge-<%= eventItem.status %>"><%= isClosed ? 'cloture' : eventItem.status %></span></td>
                 <td>
                   <% if (!isClosed) { %>

@@ -32,7 +32,7 @@
           <td><%= item.email %></td>
           <td><span class="badge badge-<%= item.role %>"><%= item.role %></span></td>
           <td><span class="badge badge-<%= item.status %>"><%= item.status %></span></td>
-          <td><%= item.lastLoginAt ? new Date(item.lastLoginAt).toLocaleString('fr-FR') : 'Jamais' %></td>
+          <td><%= item.lastLoginAt ? formatDateTime(item.lastLoginAt) : 'Jamais' %></td>
           <td>
             <div class="table-actions">
               <a class="btn btn-secondary btn-small" href="/admin/users/<%= item.id %>/edit">Modifier</a>
@@ -76,11 +76,11 @@
             <td>
               <%= eventItem.name %>
               <% if (isClosed && eventItem.closedAt) { %>
-                <small class="muted-note">Cloture le <%= new Date(eventItem.closedAt).toLocaleString('fr-FR') %></small>
+                <small class="muted-note">Cloture le <%= formatDateTime(eventItem.closedAt) %></small>
               <% } %>
             </td>
             <td><%= eventItem.ownerFullName %> (<%= eventItem.ownerEmail %>)</td>
-            <td><%= new Date(eventItem.startsAt).toLocaleString('fr-FR') %></td>
+            <td><%= formatDateTime(eventItem.startsAt) %></td>
             <td><span class="badge badge-<%= eventItem.status %>"><%= isClosed ? 'cloture' : eventItem.status %></span></td>
             <td>
               <% if (!isClosed) { %>
@@ -92,6 +92,10 @@
                 </small>
               <% } else if (eventItem.archiveStatus === 'failed') { %>
                 <span class="archive-failed" title="<%= eventItem.archiveError || '' %>">Echec de generation</span>
+                <form method="post" action="/admin/events/<%= eventItem.id %>/archive/retry" class="inline-form">
+                  <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                  <button class="btn btn-secondary btn-small" type="submit">Relancer</button>
+                </form>
               <% } else { %>
                 <span class="archive-pending">
                   <span class="archive-spinner" aria-hidden="true"></span>

@@ -11,9 +11,9 @@
     <div class="slideshow-shell"
       id="slideshow-shell"
       data-event-id="<%= editingEvent.id %>"
-      data-event-name="<%- editingEvent.name %>"
+      data-event-name="<%= editingEvent.name %>"
       data-transition="<%= slideshowTransition || 'fade' %>"
-      data-initial-photos='<%- JSON.stringify(initialPhotos || []) %>'>
+      data-initial-photos="<%= JSON.stringify(initialPhotos || []) %>">
 
       <header class="slideshow-event-banner" aria-label="Nom de l'evenement">
         <span class="slideshow-event-pill"><%= eventTheme ? eventTheme.icon : '✦' %> Evenement</span>

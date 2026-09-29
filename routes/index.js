@@ -14,7 +14,10 @@ const { body, param, validationResult } = require('express-validator');
 const logger = require('../config/logger');
 const eventTransitions = require('../config/eventTransitions');
 const eventThemes = require('../config/eventThemes');
+const { SESSION_SECRET } = require('../config/session');
+const { toDateTimeLocal } = require('../config/timezone');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
+const archiveNotificationService = require('../services/archiveNotificationService');
 const eventArchiveService = require('../services/eventArchiveService');
 const eventArchiveRequestStore = require('../services/eventArchiveRequestStore');
 const eventFileStore = require('../services/eventFileStore');
@@ -140,9 +143,34 @@ function eventArchiveRequestCookieName(token) {
   return `event_archive_request_${token}`;
 }
 
+function signCookieValue(value) {
+  const signature = crypto.createHmac('sha256', SESSION_SECRET).update(value).digest('base64url');
+  return `${value}.${signature}`;
+}
+
+/** Valeur d'origine si la signature HMAC est valide, sinon null. */
+function unsignCookieValue(signedValue) {
+  const separatorIndex = signedValue.lastIndexOf('.');
+  if (separatorIndex <= 0) {
+    return null;
+  }
+
+  const value = signedValue.slice(0, separatorIndex);
+  const expected = Buffer.from(signCookieValue(value));
+  const actual = Buffer.from(signedValue);
+
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual) ? value : null;
+}
+
+/**
+ * Email de la demande d'archive de ce navigateur.
+ * Le cookie est signe : il sert a retrouver (et supprimer) la demande en base,
+ * un invite ne doit donc pas pouvoir y placer l'adresse de quelqu'un d'autre.
+ */
 function getEventArchiveRequestEmail(req, token) {
   const value = getCookieValue(req, eventArchiveRequestCookieName(token));
-  return value ? value.trim() : '';
+  const email = value ? unsignCookieValue(value.trim()) : null;
+  return email || '';
 }
 
 function buildEventSiteNav(token, guestName, eventName, themeKey, isClosed = false) {
@@ -249,15 +277,6 @@ function normalizeEventFormData(formData = {}, fallback = {}) {
   };
 }
 
-function sanitizeFileExtension(originalName) {
-  const extension = path.extname(originalName || '').toLowerCase();
-  if (!extension || !/^\.[a-z0-9]{1,10}$/.test(extension)) {
-    return '';
-  }
-
-  return extension;
-}
-
 async function computeFileChecksum(filePath) {
   const fileBuffer = await fs.readFile(filePath);
   return crypto.createHash('sha256').update(fileBuffer).digest('hex');
@@ -288,7 +307,8 @@ function createEventUploadMiddleware(maxFiles = 10) {
       }
     },
     filename(req, file, callback) {
-      const extension = sanitizeFileExtension(file.originalname);
+      // fileFilter garantit qu'une extension d'image autorisee existe.
+      const extension = imageVariantService.resolveImageExtension(file.originalname, file.mimetype);
       callback(null, `${crypto.randomUUID()}${extension}`);
     },
   });
@@ -300,7 +320,11 @@ function createEventUploadMiddleware(maxFiles = 10) {
       files: maxFiles,
     },
     fileFilter(req, file, callback) {
-      if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      // Le type MIME est declare par le client : on exige en plus une
+      // extension d'image raster, car c'est elle qui determine le
+      // Content-Type au moment de servir le fichier.
+      if (!file.mimetype || !file.mimetype.startsWith('image/')
+        || !imageVariantService.resolveImageExtension(file.originalname, file.mimetype)) {
         callback(new Error('INVALID_FILE_TYPE'));
         return;
       }
@@ -451,19 +475,6 @@ const eventArchiveRequestValidators = [
     .normalizeEmail(),
 ];
 
-function toDateTimeLocal(value) {
-  if (!value) {
-    return '';
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return '';
-  }
-
-  return date.toISOString().slice(0, 16);
-}
-
 async function findOwnedEvent(userId, eventId) {
   const eventItem = await eventStore.findById(eventId);
   if (!eventItem || eventItem.ownerUserId !== Number(userId)) {
@@ -478,12 +489,15 @@ async function renderProfile(req, res, payload = {}, status = 200) {
 
   // Le dashboard a besoin du nombre de photos non moderees pour savoir s'il
   // peut proposer la cloture (celle-ci est bloquee tant qu'il en reste).
-  const eventsWithPendingCount = await Promise.all(events.map(async (eventItem) => ({
+  // Une seule requete groupee pour tous les evenements non clos.
+  const pendingCounts = await eventFileStore.countByEventsAndStatus(
+    events.filter((eventItem) => eventItem.status !== 'closed').map((eventItem) => eventItem.id),
+    'pending',
+  );
+  const eventsWithPendingCount = events.map((eventItem) => ({
     ...eventItem,
-    pendingModerationCount: eventItem.status === 'closed'
-      ? 0
-      : await eventFileStore.countByEventAndStatus(eventItem.id, 'pending'),
-  })));
+    pendingModerationCount: pendingCounts.get(eventItem.id) || 0,
+  }));
 
   return renderView(res, 'profile', {
     title: 'Mon profil',
@@ -772,7 +786,7 @@ router.get(
   '/event/:token/media/:storedName/:variant',
   [
     param('token').trim().matches(/^[A-Za-z0-9]{10}$/),
-    param('storedName').trim().matches(/^[0-9a-f-]{36}\.[a-z0-9]{1,10}$/i),
+    param('storedName').trim().matches(imageVariantService.STORED_NAME_PATTERN),
     param('variant').trim().matches(/^(original|xl|md|sm)$/),
   ],
   async (req, res, next) => {
@@ -888,8 +902,8 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
         return res.status(400).json({ message: 'Aucun fichier image recu.' });
       }
 
+      const createdFiles = [];
       try {
-        const createdFiles = [];
         for (const file of uploadedFiles) {
           const checksumSha256 = await computeFileChecksum(file.path);
           const record = await eventFileStore.createFileRecord({
@@ -938,9 +952,18 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
           files: createdFiles,
         });
       } catch (err) {
-        if (uploadedFiles.length > 0) {
-          await Promise.all(uploadedFiles.map((file) => fs.rm(file.path, { force: true })));
+        // Seuls les fichiers sans enregistrement en base sont supprimes : ceux
+        // deja enregistres restent references (galerie, moderation, archive).
+        const recordedNames = new Set(createdFiles.map((fileItem) => fileItem.storedName));
+        await Promise.all(uploadedFiles
+          .filter((file) => !recordedNames.has(file.filename))
+          .map((file) => fs.rm(file.path, { force: true })));
+
+        // Cloture survenue pendant la reception de l'envoi (cf. createFileRecord).
+        if (err.code === 'EVENT_CLOSED') {
+          return res.status(403).json({ message: 'Cet evenement est cloture : les envois de photos sont termines.' });
         }
+
         return next(err);
       }
     });
@@ -1055,12 +1078,22 @@ router.post('/event/:token/archive-request', param('token').trim().matches(/^[A-
       }
 
       await eventArchiveRequestStore.upsertRequest(eventItem.id, email);
-      res.cookie(eventArchiveRequestCookieName(req.params.token), email, {
+      res.cookie(eventArchiveRequestCookieName(req.params.token), signCookieValue(email), {
         ...cookieOptions,
         maxAge: 30 * 24 * 60 * 60 * 1000,
       });
 
-      req.flash('success', `Vous recevrez l'archive des photos a ${email} des sa generation.`);
+      // Les notifications partent une seule fois, a la fin de la generation :
+      // une inscription posterieure a une archive deja prete est servie tout
+      // de suite, sinon elle ne recevrait jamais rien.
+      if (isEventClosed(eventItem) && eventItem.archiveStatus === 'ready') {
+        void archiveNotificationService.notifyArchiveRequesters(eventItem, { emails: [email] }).catch((err) => {
+          logger.error(`[ARCHIVE-MAIL] Notification immediate echouee pour ${eventItem.uuid}: ${err.message}`);
+        });
+        req.flash('success', `L'archive des photos est deja prete : le lien vous est envoye a ${email}.`);
+      } else {
+        req.flash('success', `Vous recevrez l'archive des photos a ${email} des sa generation.`);
+      }
     } else {
       if (previousEmail) {
         await eventArchiveRequestStore.removeRequest(eventItem.id, previousEmail);
@@ -1102,6 +1135,25 @@ router.get('/event/:token/archive', param('token').trim().matches(/^[A-Za-z0-9]{
   }
 });
 
+/**
+ * Ouvre une session authentifiee sur un NOUVEL identifiant de session.
+ * Reutiliser l'identifiant pre-authentification permettrait une fixation de
+ * session (un sid pose a l'avance par un tiers deviendrait authentifie).
+ */
+function establishUserSession(req, userId) {
+  return new Promise((resolve, reject) => {
+    req.session.regenerate((regenerateErr) => {
+      if (regenerateErr) {
+        reject(regenerateErr);
+        return;
+      }
+
+      req.session.userId = userId;
+      resolve();
+    });
+  });
+}
+
 router.get('/register', ensureGuest, (req, res) => renderView(res, 'auth/register', {
   title: 'Inscription',
   pageClass: 'page-auth',
@@ -1125,7 +1177,7 @@ router.post('/register', authLimiter, ensureGuest, registrationValidators, async
       fullName: req.body.fullName,
     });
 
-    req.session.userId = user.id;
+    await establishUserSession(req, user.id);
     logger.info(`[AUTH] Nouvelle inscription: ${user.email}`);
     req.flash('success', 'Votre compte a ete cree.');
     return res.redirect('/profile');
@@ -1172,7 +1224,7 @@ router.post('/login', authLimiter, ensureGuest, loginValidators, async (req, res
       return res.redirect('/login');
     }
 
-    req.session.userId = user.id;
+    await establishUserSession(req, user.id);
     await userStore.updateLastLogin(user.id);
     logger.info(`[AUTH] Connexion reussie: ${user.email}`);
     req.flash('success', 'Connexion reussie.');
@@ -1517,7 +1569,7 @@ router.get(
   [
     requireAuth,
     param('id').isInt({ min: 1 }),
-    param('storedName').trim().matches(/^[0-9a-f-]{36}\.[a-z0-9]{1,10}$/i),
+    param('storedName').trim().matches(imageVariantService.STORED_NAME_PATTERN),
     param('variant').trim().matches(/^(original|xl|md|sm)$/),
   ],
   async (req, res, next) => {
@@ -1676,7 +1728,8 @@ router.post('/profile/events/:id/close', requireAuth, param('id').isInt({ min: 1
     // Le champ de confirmation est genere par la popup : sans lui, on refuse.
     // Cela garantit qu'aucune cloture ne peut partir d'un simple lien ou d'un
     // double-submit accidentel.
-    if (req.body.confirmClose !== 'CLOTURER') {
+    // Meme normalisation que la popup (trim), qui active le bouton sur ce critere.
+    if (String(req.body.confirmClose || '').trim() !== 'CLOTURER') {
       req.flash('error', 'Cloture annulee : la confirmation est obligatoire.');
       return res.redirect('/profile');
     }
@@ -1691,7 +1744,20 @@ router.post('/profile/events/:id/close', requireAuth, param('id').isInt({ min: 1
       return res.redirect(`/profile/event/${eventId}/moderation`);
     }
 
-    const closedEvent = await eventStore.closeEvent(eventId);
+    let closedEvent;
+    try {
+      closedEvent = await eventStore.closeEvent(eventId);
+    } catch (closeErr) {
+      // Photo arrivee en moderation entre la verification ci-dessus et la cloture.
+      if (closeErr.code !== 'EVENT_PENDING_MODERATION') {
+        throw closeErr;
+      }
+
+      req.flash('error', 'Cloture impossible : de nouvelles photos attendent votre moderation. '
+        + 'Approuvez-les ou rejetez-les avant de cloturer.');
+      return res.redirect(`/profile/event/${eventId}/moderation`);
+    }
+
     if (!closedEvent) {
       req.flash('error', 'Cet evenement est deja cloture.');
       return res.redirect('/profile');
@@ -1821,6 +1887,7 @@ router.get('/admin/settings', requireAdmin, async (req, res, next) => {
       pageClass: 'page-admin',
       mailNotificationsEnabled,
       mailEnvConfigured: mailService.isEnvConfigured(),
+      mailBaseUrlConfigured: archiveNotificationService.isBaseUrlConfigured(),
     });
   } catch (err) {
     return next(err);
@@ -1936,7 +2003,7 @@ router.get('/admin/events/:id/edit', requireAdmin, param('id').isInt({ min: 1 })
       editingEvent,
       formData: normalizeEventFormData({
         ...editingEvent,
-        startsAt: new Date(editingEvent.startsAt).toISOString().slice(0, 16),
+        startsAt: toDateTimeLocal(editingEvent.startsAt),
       }, editingEvent),
     });
   } catch (err) {
@@ -2035,6 +2102,28 @@ router.get('/admin/events/:id/archive', requireAdmin, param('id').isInt({ min: 1
     }
 
     return sendEventArchive(req, res, next, eventItem, '/admin');
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** Nouvelle tentative de generation d'une archive ZIP en echec. */
+router.post('/admin/events/:id/archive/retry', requireAdmin, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return renderEventNotFound(res);
+  }
+
+  try {
+    const restarted = await eventArchiveService.retryArchiveGeneration(Number(req.params.id));
+    if (restarted) {
+      logger.info(`[ADMIN] ${req.currentUser.email} a relance l'archive de l'evenement ${req.params.id}`);
+      req.flash('success', 'Generation de l\'archive relancee.');
+    } else {
+      req.flash('error', 'Seule une archive en echec d\'un evenement cloture peut etre relancee.');
+    }
+
+    return res.redirect('/admin');
   } catch (err) {
     return next(err);
   }
@@ -2282,6 +2371,9 @@ router.delete('/admin/users/:id', requireAdmin, param('id').isInt({ min: 1 }), a
       }
     }
 
+    // Supprime d'abord les evenements via eventStore pour effacer aussi leur
+    // stockage disque : la cascade SQL de users ne supprimerait que les lignes.
+    await eventStore.deleteEventsByOwner(targetUser.id);
     await userStore.deleteUser(targetUser.id);
     logger.info(`[ADMIN] ${req.currentUser.email} a supprime l'utilisateur ${targetUser.email}`);
     req.flash('success', 'Utilisateur supprime.');
@@ -2296,7 +2388,7 @@ router.get(
   [
     requireAdmin,
     param('id').isInt({ min: 1 }),
-    param('storedName').trim().matches(/^[0-9a-f-]{36}\.[a-z0-9]{1,10}$/i),
+    param('storedName').trim().matches(imageVariantService.STORED_NAME_PATTERN),
     param('variant').trim().matches(/^(original|xl|md|sm)$/),
   ],
   async (req, res, next) => {

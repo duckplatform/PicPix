@@ -53,7 +53,7 @@ describe('Tests applicatifs HTTP', () => {
     eventFileStore.resetTestState();
     eventStore.resetTestState();
 
-    await fs.rm(EVENT_STORAGE_ROOT, { recursive: true, force: true });
+    await fs.rm(EVENT_STORAGE_ROOT, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 });
     await fs.mkdir(EVENT_STORAGE_ROOT, { recursive: true });
   });
 

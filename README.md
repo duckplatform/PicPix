@@ -31,8 +31,14 @@ export DB_PORT=3306
 export DB_NAME=picpix
 export DB_USER=picpix
 export DB_PASSWORD=picpix_dev
-export SESSION_SECRET="remplacer-par-un-secret-fort"
+export SESSION_SECRET="remplacer-par-un-secret-fort"   # obligatoire en production
+export APP_TIMEZONE="Europe/Paris"                      # fuseau des dates saisies/affichees
+export APP_BASE_URL="https://picpix.example.com"        # URL absolue des liens envoyes par email
 ```
+
+Envoi d'emails (archive photos) : definir aussi `SMTP_HOST`, `SMTP_PORT`,
+`SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS` et `SMTP_FROM`. Sans `APP_BASE_URL`,
+aucun email n'est envoye (le lien serait relatif, donc inutilisable).
 
 3. Initialiser la base:
 

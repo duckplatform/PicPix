@@ -94,6 +94,14 @@ CREATE TABLE IF NOT EXISTS event_archive_requests (
 		ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS sessions (
+	session_id VARCHAR(128) NOT NULL,
+	expires_at DATETIME NOT NULL,
+	data MEDIUMTEXT NOT NULL,
+	PRIMARY KEY (session_id),
+	KEY idx_sessions_expires_at (expires_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS app_settings (
 	setting_key VARCHAR(100) NOT NULL,
 	setting_value VARCHAR(255) NULL,
