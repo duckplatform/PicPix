@@ -21,6 +21,7 @@ const archiveNotificationService = require('../services/archiveNotificationServi
 const eventArchiveService = require('../services/eventArchiveService');
 const eventArchiveRequestStore = require('../services/eventArchiveRequestStore');
 const eventFileStore = require('../services/eventFileStore');
+const eventPosterService = require('../services/eventPosterService');
 const imageVariantService = require('../services/imageVariantService');
 const mailService = require('../services/mailService');
 const settingsStore = require('../services/settingsStore');
@@ -530,6 +531,36 @@ function isEventClosed(eventItem) {
 }
 
 /**
+ * URL absolue du site invite, encodee dans le QR code. APP_BASE_URL prime :
+ * derriere un proxy, l'hote de la requete n'est pas forcement l'URL publique.
+ */
+function buildGuestEventUrl(req, token) {
+  const configuredBaseUrl = (process.env.APP_BASE_URL || '').trim().replace(/\/+$/, '');
+  const baseUrl = /^https?:\/\/[^/]+/i.test(configuredBaseUrl)
+    ? configuredBaseUrl
+    : `${req.protocol}://${req.get('host')}`;
+
+  return `${baseUrl}/event/${token}`;
+}
+
+async function sendEventQrCode(req, res, eventItem) {
+  const png = await eventPosterService.renderQrPng(buildGuestEventUrl(req, eventItem.token));
+  // Le QR change quand le lien est regenere : pas de cache.
+  res.set('Cache-Control', 'no-store');
+  if (req.query.download) {
+    res.attachment(eventPosterService.buildQrFileName(eventItem));
+  }
+  return res.type('png').send(png);
+}
+
+async function sendEventPoster(req, res, eventItem) {
+  const pdf = await eventPosterService.renderPosterPdf(eventItem, buildGuestEventUrl(req, eventItem.token));
+  res.set('Cache-Control', 'no-store');
+  res.set('Content-Disposition', `inline; filename="${eventPosterService.buildPosterFileName(eventItem)}"`);
+  return res.type('pdf').send(pdf);
+}
+
+/**
  * Refuse une action de modification sur un evenement clos.
  * La cloture est definitive : on ne propose aucune reouverture.
  */
@@ -599,6 +630,7 @@ function renderProfileEventForm(req, res, eventItem, payload = {}, status = 200)
     title: 'Modifier l\'événement',
     pageClass: 'page-profile',
     editingEvent: eventItem,
+    guestUrl: buildGuestEventUrl(req, eventItem.token),
     formData: {
       name: eventItem.name,
       description: eventItem.description,
@@ -1814,6 +1846,43 @@ router.get('/profile/events/:id/archive', requireAuth, param('id').isInt({ min: 
   }
 });
 
+router.get('/profile/events/:id/qr.png', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return renderEventNotFound(res);
+  }
+
+  try {
+    const eventItem = await findOwnedEvent(req.currentUser.id, Number(req.params.id));
+    if (!eventItem) {
+      return renderEventNotFound(res);
+    }
+
+    return await sendEventQrCode(req, res, eventItem);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/** Affiche A4 a imprimer : QR code, instructions et theme de l'evenement. */
+router.get('/profile/events/:id/poster.pdf', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return renderEventNotFound(res);
+  }
+
+  try {
+    const eventItem = await findOwnedEvent(req.currentUser.id, Number(req.params.id));
+    if (!eventItem) {
+      return renderEventNotFound(res);
+    }
+
+    return await sendEventPoster(req, res, eventItem);
+  } catch (err) {
+    return next(err);
+  }
+});
+
 router.post('/profile/events/:id/regenerate-token', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
   const result = validationResult(req);
   if (!result.isEmpty()) {
@@ -2001,6 +2070,7 @@ router.get('/admin/events/:id/edit', requireAdmin, param('id').isInt({ min: 1 })
       users,
       eventFiles,
       editingEvent,
+      guestUrl: buildGuestEventUrl(req, editingEvent.token),
       formData: normalizeEventFormData({
         ...editingEvent,
         startsAt: toDateTimeLocal(editingEvent.startsAt),
@@ -2026,6 +2096,7 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
         users,
         eventFiles,
         editingEvent,
+        guestUrl: editingEvent ? buildGuestEventUrl(req, editingEvent.token) : '',
         formData: normalizeEventFormData({ ...req.body, id: eventId }, editingEvent || {}),
         fieldErrors: collectFieldErrors(result),
       }, 422);
@@ -2124,6 +2195,42 @@ router.post('/admin/events/:id/archive/retry', requireAdmin, param('id').isInt({
     }
 
     return res.redirect('/admin');
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get('/admin/events/:id/qr.png', requireAdmin, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return renderEventNotFound(res);
+  }
+
+  try {
+    const eventItem = await eventStore.findById(Number(req.params.id));
+    if (!eventItem) {
+      return renderEventNotFound(res);
+    }
+
+    return await sendEventQrCode(req, res, eventItem);
+  } catch (err) {
+    return next(err);
+  }
+});
+
+router.get('/admin/events/:id/poster.pdf', requireAdmin, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return renderEventNotFound(res);
+  }
+
+  try {
+    const eventItem = await eventStore.findById(Number(req.params.id));
+    if (!eventItem) {
+      return renderEventNotFound(res);
+    }
+
+    return await sendEventPoster(req, res, eventItem);
   } catch (err) {
     return next(err);
   }

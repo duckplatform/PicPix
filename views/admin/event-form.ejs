@@ -8,20 +8,7 @@
   </div>
 
   <% if (mode === 'edit') { %>
-    <div class="definition-list">
-      <div>
-        <dt>UUID</dt>
-        <dd><code><%= editingEvent.uuid %></code></dd>
-      </div>
-      <div>
-        <dt>Token</dt>
-        <dd><code><%= editingEvent.token %></code></dd>
-      </div>
-    </div>
-    <form method="post" action="/admin/events/<%= editingEvent.id %>/regenerate-token" class="inline-form section-gap">
-      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-      <button class="btn btn-secondary" type="submit">Régénérer le lien</button>
-    </form>
+    <%- include('../partials/event-share', { basePath: `/admin/events/${editingEvent.id}` }) %>
   <% } %>
 
   <form method="post" action="<%= mode === 'create' ? '/admin/events' : `/admin/events/${editingEvent.id}?_method=PUT` %>" class="form-grid">

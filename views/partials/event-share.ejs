@@ -1,0 +1,37 @@
+<%
+  // Lien invite, QR code et affiche a imprimer d'un evenement.
+  // Parametres : editingEvent, guestUrl, basePath (/admin/events/:id ou /profile/events/:id), csrfToken.
+%>
+<div class="event-share">
+  <div class="event-share-qr">
+    <img src="<%= basePath %>/qr.png?v=<%= editingEvent.token %>" alt="QR code du lien invité" width="176" height="176" />
+  </div>
+
+  <div class="event-share-body">
+    <dl class="definition-list">
+      <div>
+        <dt>Lien invité</dt>
+        <dd><a href="<%= guestUrl %>" target="_blank" rel="noopener noreferrer"><%= guestUrl %></a></dd>
+      </div>
+      <div>
+        <dt>Token</dt>
+        <dd><code><%= editingEvent.token %></code></dd>
+      </div>
+      <div>
+        <dt>UUID</dt>
+        <dd><code><%= editingEvent.uuid %></code></dd>
+      </div>
+    </dl>
+
+    <p class="event-share-hint">Imprimez l'affiche et placez-la sur les tables, à l'entrée ou près du buffet : les invités scannent le QR code pour partager leurs photos.</p>
+
+    <div class="event-share-actions">
+      <a class="btn" href="<%= basePath %>/poster.pdf" target="_blank" rel="noopener noreferrer"><%- include('icon', { name: 'download', size: 18 }) %>Affiche PDF à imprimer</a>
+      <a class="btn btn-secondary" href="<%= basePath %>/qr.png?download=1" download>QR code (PNG)</a>
+      <form method="post" action="<%= basePath %>/regenerate-token" class="inline-form" onsubmit="return confirm('Régénérer le lien invité ? L\'ancien lien, ainsi que les QR codes et affiches déjà imprimés, ne fonctionneront plus.');">
+        <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+        <button class="btn btn-secondary" type="submit">Régénérer le lien</button>
+      </form>
+    </div>
+  </div>
+</div>
