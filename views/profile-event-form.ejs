@@ -7,23 +7,9 @@
     <p>Modifiez les informations et les options de l'événement. Le lien invité reste identique tant que vous ne le régénérez pas.</p>
   </div>
 
-  <div class="definition-list">
-    <div>
-      <dt>UUID</dt>
-      <dd><code><%= editingEvent.uuid %></code></dd>
-    </div>
-    <div>
-      <dt>Token</dt>
-      <dd><code><%= editingEvent.token %></code></dd>
-    </div>
-  </div>
+  <%- include('partials/event-share', { basePath: `/profile/events/${editingEvent.id}` }) %>
 
-  <form method="post" action="/profile/events/<%= editingEvent.id %>/regenerate-token" class="inline-form section-gap">
-    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-    <button class="btn btn-secondary" type="submit">Régénérer le lien</button>
-  </form>
-
-  <form method="post" action="/profile/events/<%= editingEvent.id %>?_method=PUT" class="form-grid section-gap">
+  <form method="post" action="/profile/events/<%= editingEvent.id %>?_method=PUT" class="form-grid">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
     <label>
