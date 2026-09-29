@@ -1,10 +1,16 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=$HOME/picpix/
-    - /bin/rm $DEPLOYPATH/* -Rf
-    - /bin/cp -R * $DEPLOYPATH
-    - source $HOME/nodevenv/picpix/24/bin/activate && cd $DEPLOYPATH
+    - export DEPLOYPATH=$HOME/picpix
+    # Remplace le code sans toucher aux donnees d'execution, absentes du depot :
+    #   storage/      photos originales, miniatures et archives ZIP
+    #   logs/         journaux de l'application
+    #   node_modules/ lien vers l'environnement Node de cPanel (nodevenv)
+    #   tmp/          fichier de redemarrage Passenger
+    # ${DEPLOYPATH:?} fait echouer la tache si la variable est vide.
+    - /bin/find "${DEPLOYPATH:?}" -mindepth 1 -maxdepth 1 ! -name storage ! -name logs ! -name node_modules ! -name tmp -exec /bin/rm -rf {} +
+    - /bin/cp -R * "$DEPLOYPATH"
+    - source $HOME/nodevenv/picpix/24/bin/activate && cd "$DEPLOYPATH"
     - npm install
     - mkdir -p tmp
     - touch tmp/restart.txt
