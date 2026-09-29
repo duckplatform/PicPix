@@ -16,10 +16,8 @@ const session        = require('express-session');
 const flash          = require('connect-flash');
 const methodOverride = require('method-override');
 const { csrfSync }   = require('csrf-sync');
-const { Server }     = require('socket.io');
 const eventStore     = require('./services/eventStore');
 const eventArchiveService = require('./services/eventArchiveService');
-const userStore      = require('./services/userStore');
 
 const logger             = require('./config/logger');
 const { testConnection } = require('./config/database');
@@ -27,6 +25,7 @@ const { SESSION_SECRET, createSessionStore } = require('./config/session');
 const { formatDateTime } = require('./config/timezone');
 const { globalLimiter }  = require('./middleware/rateLimiter');
 const { injectLocals }   = require('./middleware/auth');
+const { createRealtimeServer } = require('./config/realtime');
 
 // ─── Initialisation de l'application Express ──────────────────────────────
 
@@ -289,63 +288,12 @@ async function refreshDatabaseState() {
   }
 }
 
-async function canAccessEventRealtime(sessionData, eventId) {
-  const userId = sessionData && sessionData.userId;
-  if (!userId) {
-    return false;
-  }
-
-  const user = await userStore.findPublicById(userId);
-  if (!user || user.status !== 'active') {
-    return false;
-  }
-
-  if (user.role === 'admin') {
-    return true;
-  }
-
-  const eventItem = await eventStore.findById(eventId);
-  return Boolean(eventItem) && eventItem.ownerUserId === Number(user.id);
-}
-
 function listenAsync() {
   return new Promise((resolve, reject) => {
     const server = http.createServer(app);
 
-    const io = new Server(server, {
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-      cors: {
-        origin: false,
-      },
-    });
-
-    app.locals.io = io;
-
-    // Partage la session Express avec Socket.IO : les salles temps reel
-    // (slideshow, moderation) sont reservees au proprietaire de l'evenement
-    // ou a un administrateur.
-    io.engine.use(sessionMiddleware);
-
-    io.on('connection', (socket) => {
-      const joinOwnedEventRoom = (roomSuffix) => async (payload = {}) => {
-        const eventId = Number.parseInt(payload.eventId, 10);
-        if (!Number.isInteger(eventId) || eventId <= 0) {
-          return;
-        }
-
-        try {
-          if (await canAccessEventRealtime(socket.request.session, eventId)) {
-            socket.join(`event:${eventId}:${roomSuffix}`);
-          }
-        } catch (err) {
-          logger.warn(`[SOCKET] Verification d'acces impossible (${roomSuffix}) : ${err.message}`);
-        }
-      };
-
-      socket.on('slideshow:join', joinOwnedEventRoom('slideshow'));
-      socket.on('moderation:join', joinOwnedEventRoom('moderation'));
-    });
+    // Temps reel (diaporama, moderation) : cf. config/realtime.js.
+    app.locals.io = createRealtimeServer(server, { sessionMiddleware });
 
     server.listen(PORT, () => {
       logger.info(`[SERVER] Application demarre sur le port ${PORT} (${ENV})`);

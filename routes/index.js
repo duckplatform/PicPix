@@ -1463,6 +1463,17 @@ router.get('/profile/events/:id/gallery', requireAuth, param('id').isInt({ min: 
   }
 });
 
+/** Photos approuvees, au format attendu par le diaporama. */
+async function listSlideshowPhotos(eventId) {
+  const uploadedFiles = await eventFileStore.listByEventAndStatus(eventId, 'approved');
+  return uploadedFiles.map((fileItem) => ({
+    storedName: fileItem.storedName,
+    originalName: fileItem.originalName,
+    uploaderName: fileItem.uploaderName,
+    uploadedAt: fileItem.createdAt,
+  }));
+}
+
 router.get('/profile/events/:id/slideshow', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
   const result = validationResult(req);
   if (!result.isEmpty()) {
@@ -1476,13 +1487,7 @@ router.get('/profile/events/:id/slideshow', requireAuth, param('id').isInt({ min
       return renderEventNotFound(res);
     }
 
-    const uploadedFiles = await eventFileStore.listByEventAndStatus(editingEvent.id, 'approved');
-    const initialPhotos = uploadedFiles.map((fileItem) => ({
-      storedName: fileItem.storedName,
-      originalName: fileItem.originalName,
-      uploaderName: fileItem.uploaderName,
-      uploadedAt: fileItem.createdAt,
-    }));
+    const initialPhotos = await listSlideshowPhotos(editingEvent.id);
 
     return renderView(res, 'profile-event-slideshow', {
       title: `Diaporama - ${editingEvent.name}`,
@@ -1494,6 +1499,29 @@ router.get('/profile/events/:id/slideshow', requireAuth, param('id').isInt({ min
       ...buildEventStartState(editingEvent),
       footerScriptPaths: ['/socket.io/socket.io.js', '/profile-event-slideshow.js'],
     });
+  } catch (err) {
+    return next(err);
+  }
+});
+
+/**
+ * Rattrapage du diaporama apres une reconnexion temps reel : les photos
+ * approuvees pendant la coupure n'ont pas ete poussees par Socket.IO.
+ */
+router.get('/profile/events/:id/slideshow/photos', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
+  const result = validationResult(req);
+  if (!result.isEmpty()) {
+    return res.status(404).json({ error: 'Événement introuvable.' });
+  }
+
+  try {
+    const editingEvent = await findOwnedEvent(req.currentUser.id, Number(req.params.id));
+    if (!editingEvent) {
+      return res.status(404).json({ error: 'Événement introuvable.' });
+    }
+
+    res.set('Cache-Control', 'no-store');
+    return res.json({ photos: await listSlideshowPhotos(editingEvent.id) });
   } catch (err) {
     return next(err);
   }

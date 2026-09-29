@@ -306,17 +306,56 @@
     tick();
   }
 
+  /** Ajoute en priorite les photos approuvees que le diaporama ne connait pas. */
+  function catchUpMissedPhotos() {
+    fetch('/profile/events/' + eventId + '/slideshow/photos', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function parse(response) {
+        return response.ok ? response.json() : null;
+      })
+      .then(function addMissing(data) {
+        if (!data || !Array.isArray(data.photos)) {
+          return;
+        }
+
+        data.photos.forEach(function addItem(item) {
+          addPhoto(item.storedName, item.originalName, true, item.uploaderName, item.uploadedAt);
+        });
+
+        if (!currentPhoto) {
+          runLoop();
+        }
+      })
+      .catch(function ignore() {
+        // Session expiree ou reseau instable : la prochaine reconnexion reessaiera.
+      });
+  }
+
   initialPhotos.forEach(function seedPhoto(item) {
     addPhoto(item.storedName, item.originalName, false, item.uploaderName, item.uploadedAt);
   });
 
   if (typeof window.io === 'function') {
-    const socket = window.io({
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-    });
+    // Transports par defaut : polling HTTP, puis WebSocket seulement si le
+    // serveur l'annonce (cf. config/realtime.js).
+    const socket = window.io({ path: '/socket.io' });
 
-    socket.emit('slideshow:join', { eventId: eventId });
+    let hasConnectedOnce = false;
+
+    // (Re)joindre la salle a chaque connexion : apres une coupure, la
+    // nouvelle socket n'appartient plus a aucune salle.
+    socket.on('connect', function onConnect() {
+      socket.emit('slideshow:join', { eventId: eventId });
+
+      // Reconnexion : les photos approuvees pendant la coupure n'ont pas
+      // ete poussees, on les rattrape.
+      if (hasConnectedOnce && !isNotStarted) {
+        catchUpMissedPhotos();
+      }
+      hasConnectedOnce = true;
+    });
 
     socket.on('slideshow:new-photo', function onNewPhoto(payload) {
       if (!payload || Number(payload.eventId) !== eventId || isNotStarted) {

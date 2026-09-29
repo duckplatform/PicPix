@@ -33,6 +33,7 @@ module.exports = [
         setInterval: 'readonly',
         clearInterval: 'readonly',
         setImmediate: 'readonly',
+        fetch: 'readonly',
       },
     },
     rules: {
