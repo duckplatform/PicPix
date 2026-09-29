@@ -102,8 +102,10 @@ describe('Tests applicatifs HTTP', () => {
       expect(res.status).to.equal(200);
       expect(res.text).to.include('Concert Public');
       expect(res.text).to.include('Grand concert public en plein air.');
-      expect(res.text).to.include('id="countdownScreen" class="countdown-screen" aria-live="polite" hidden');
-      expect(res.text).to.include('id="welcomeScreen" class="welcome-screen" aria-live="polite" >');
+      expect(res.text).to.not.include('class="countdown-screen"');
+      expect(res.text).to.include("C'est parti");
+      expect(res.text).to.include(`href="/event/${createdEvent.token}/upload"`);
+      expect(res.text).to.include(`href="/event/${createdEvent.token}/gallery"`);
     });
 
     it('GET /event/:token affiche le chrono si l\'evenement n\'a pas commence', async () => {
@@ -122,8 +124,65 @@ describe('Tests applicatifs HTTP', () => {
       const res = await agent.get(`/event/${createdEvent.token}`);
 
       expect(res.status).to.equal(200);
-      expect(res.text).to.include('id="countdownScreen" class="countdown-screen" aria-live="polite" >');
-      expect(res.text).to.include('id="welcomeScreen" class="welcome-screen" aria-live="polite" hidden');
+      expect(res.text).to.include('class="countdown-screen"');
+      expect(res.text).to.not.include("C'est parti");
+    });
+
+    it("GET /event/:token masque envoi et galerie tant que l'evenement n'est pas ouvert, meme heure passee", async () => {
+      const owner = await userStore.findByEmail('admin@example.com');
+      const createdEvent = await eventStore.createEvent({
+        ownerUserId: owner.id,
+        name: 'Soiree en attente',
+        description: "Pas encore ouverte par l'organisateur.",
+        startsAt: '2020-01-01T10:00:00',
+        status: 'inactive',
+      });
+
+      const agent = request.agent(app);
+      await registerGuestForEvent(agent, createdEvent.token, 'Invite Patient');
+
+      const res = await agent.get(`/event/${createdEvent.token}`);
+
+      expect(res.status).to.equal(200);
+      expect(res.text).to.include('Encore un peu de patience');
+      expect(res.text).to.not.include('class="countdown-screen"');
+      expect(res.text).to.not.include(`href="/event/${createdEvent.token}/upload"`);
+      expect(res.text).to.not.include(`href="/event/${createdEvent.token}/gallery"`);
+    });
+
+    it("bloque envoi et galerie visiteur tant que l'evenement n'est pas ouvert", async () => {
+      const owner = await userStore.findByEmail('admin@example.com');
+      const createdEvent = await eventStore.createEvent({
+        ownerUserId: owner.id,
+        name: 'Mariage a venir',
+        description: 'Ouverture le jour J.',
+        startsAt: '2099-12-31T23:59:00',
+        status: 'inactive',
+      });
+
+      const agent = request.agent(app);
+      await registerGuestForEvent(agent, createdEvent.token, 'Invite Presse');
+
+      const uploadPage = await agent.get(`/event/${createdEvent.token}/upload`);
+      expect(uploadPage.status).to.equal(302);
+      expect(uploadPage.headers.location).to.equal(`/event/${createdEvent.token}`);
+
+      const galleryPage = await agent.get(`/event/${createdEvent.token}/gallery`);
+      expect(galleryPage.status).to.equal(302);
+      expect(galleryPage.headers.location).to.equal(`/event/${createdEvent.token}`);
+
+      const eventPage = await agent.get(`/event/${createdEvent.token}`);
+      const uploadResponse = await agent
+        .post(`/event/${createdEvent.token}/upload`)
+        .set('x-csrf-token', extractCsrfToken(eventPage.text))
+        .attach('photos', Buffer.from('photo avant ouverture'), {
+          filename: 'avant.jpg',
+          contentType: 'image/jpeg',
+        });
+
+      expect(uploadResponse.status).to.equal(403);
+      expect(await eventFileStore.listByEventAndStatus(createdEvent.id, 'approved')).to.have.length(0);
+      expect(await eventFileStore.listByEventAndStatus(createdEvent.id, 'pending')).to.have.length(0);
     });
 
     it('GET /event/:token applique la classe CSS du theme configure', async () => {

@@ -17,7 +17,9 @@
             <% if (eventSiteNav.uploadUrl) { %>
               <a href="<%= eventSiteNav.uploadUrl %>" <%- currentAttr(eventSiteNav.uploadUrl, true) %>>Envoyer</a>
             <% } %>
-            <a href="<%= eventSiteNav.galleryUrl %>" <%- currentAttr(eventSiteNav.galleryUrl, true) %>>Galerie</a>
+            <% if (eventSiteNav.galleryUrl) { %>
+              <a href="<%= eventSiteNav.galleryUrl %>" <%- currentAttr(eventSiteNav.galleryUrl, true) %>>Galerie</a>
+            <% } %>
           </span>
           <span class="event-user-chip" title="<%= eventSiteNav.guestName %>">
             <span class="event-user-name"><%= eventSiteNav.guestName %></span>

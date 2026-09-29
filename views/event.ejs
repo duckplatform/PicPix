@@ -4,21 +4,39 @@
   <p class="eyebrow">Vous êtes invité</p>
   <div class="richtext-content"><%- renderedDescriptionHtml %></div>
   <p class="event-date"><%- include('partials/icon', { name: 'calendar', size: 18 }) %><span>Début : <strong><%= formatDateTime(eventItem.startsAt) %></strong></span></p>
-  <div class="hero-actions">
-    <a class="btn btn-lg" href="/event/<%= eventItem.token %>/upload"><%- include('partials/icon', { name: 'camera', size: 18 }) %>Déposer des photos</a>
-    <a class="btn btn-secondary btn-lg" href="/event/<%= eventItem.token %>/gallery"><%- include('partials/icon', { name: 'images', size: 18 }) %>Voir la galerie</a>
-  </div>
+  <% if (eventSiteNav.uploadUrl || eventSiteNav.galleryUrl) { %>
+    <div class="hero-actions">
+      <% if (eventSiteNav.uploadUrl) { %>
+        <a class="btn btn-lg" href="<%= eventSiteNav.uploadUrl %>"><%- include('partials/icon', { name: 'camera', size: 18 }) %>Déposer des photos</a>
+      <% } %>
+      <% if (eventSiteNav.galleryUrl) { %>
+        <a class="btn btn-secondary btn-lg" href="<%= eventSiteNav.galleryUrl %>"><%- include('partials/icon', { name: 'images', size: 18 }) %>Voir la galerie</a>
+      <% } %>
+    </div>
+  <% } %>
 
-  <section id="countdownScreen" class="countdown-screen" aria-live="polite" <%= shouldShowCountdown ? '' : 'hidden' %>>
-    <h2>L'événement commence bientôt</h2>
-    <p>Temps restant avant l'ouverture</p>
-    <div id="countdownValue" class="countdown-value">--:--:--</div>
-  </section>
-
-  <section id="welcomeScreen" class="welcome-screen" aria-live="polite" <%= shouldShowCountdown ? 'hidden' : '' %>>
-    <h2>C'est parti</h2>
-    <p>L'événement a commencé : partagez vos plus belles photos au fil de la journée.</p>
-  </section>
+  <% if (shouldShowCountdown) { %>
+    <section class="countdown-screen" aria-live="polite">
+      <h2>L'événement commence bientôt</h2>
+      <p>Temps restant avant l'ouverture</p>
+      <div id="countdownValue" class="countdown-value">--:--:--</div>
+    </section>
+  <% } else if (eventItem.status === 'inactive') { %>
+    <section class="welcome-screen">
+      <h2>Encore un peu de patience</h2>
+      <p>L'événement n'a pas encore été ouvert par l'organisateur : l'envoi de photos et la galerie seront disponibles dès son ouverture.</p>
+    </section>
+  <% } else if (eventItem.status === 'closed') { %>
+    <section class="welcome-screen">
+      <h2>L'événement est terminé</h2>
+      <p>Les envois de photos sont clos : retrouvez tous les souvenirs dans la galerie.</p>
+    </section>
+  <% } else { %>
+    <section class="welcome-screen">
+      <h2>C'est parti</h2>
+      <p>L'événement a commencé : partagez vos plus belles photos au fil de la journée.</p>
+    </section>
+  <% } %>
 </section>
 
 <section class="card form-card section-gap">
@@ -61,13 +79,13 @@
   }());
 </script>
 
+<% if (shouldShowCountdown) { %>
 <script>
-  (function initEventStatus() {
-    const startsAtIso = '<%= eventStartsAtIso || '' %>';
-    const startsAt = startsAtIso ? new Date(startsAtIso) : null;
-    const shouldShowCountdown = <%= shouldShowCountdown ? 'true' : 'false' %>;
-    const countdownScreen = document.getElementById('countdownScreen');
-    const welcomeScreen = document.getElementById('welcomeScreen');
+  (function initCountdown() {
+    const startsAt = new Date('<%= eventStartsAtIso %>');
+    // Decalage horloge serveur/navigateur : sans lui, un navigateur en avance
+    // rechargerait la page en boucle alors que le serveur attend encore.
+    const clockOffset = new Date('<%= nowIso %>').getTime() - Date.now();
     const countdownValue = document.getElementById('countdownValue');
 
     function formatRemaining(ms) {
@@ -80,22 +98,13 @@
       return `${String(days).padStart(2, '0')}j ${String(hours).padStart(2, '0')}h ${String(minutes).padStart(2, '0')}m ${String(seconds).padStart(2, '0')}s`;
     }
 
-    function switchToWelcome() {
-      countdownScreen.hidden = true;
-      welcomeScreen.hidden = false;
-    }
-
     function tick() {
-      if (!startsAt) {
-        switchToWelcome();
-        return;
-      }
+      const diff = startsAt.getTime() - (Date.now() + clockOffset);
 
-      const now = new Date();
-      const diff = startsAt.getTime() - now.getTime();
-
+      // Heure de debut atteinte : le serveur decide de l'etat affiche
+      // (ouvert si l'organisateur a active l'evenement, sinon attente).
       if (diff <= 0) {
-        switchToWelcome();
+        window.location.reload();
         return;
       }
 
@@ -103,18 +112,8 @@
       setTimeout(tick, 1000);
     }
 
-    if (!shouldShowCountdown) {
-      switchToWelcome();
-      return;
-    }
-
-    const initialNow = new Date('<%= nowIso %>');
-    if (!startsAt || startsAt.getTime() <= initialNow.getTime()) {
-      switchToWelcome();
-      return;
-    }
-
     tick();
   }());
 </script>
+<% } %>
 <%- include('partials/footer') %>

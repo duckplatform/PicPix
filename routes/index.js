@@ -173,16 +173,17 @@ function getEventArchiveRequestEmail(req, token) {
   return email || '';
 }
 
-function buildEventSiteNav(token, guestName, eventName, themeKey, isClosed = false) {
+function buildEventSiteNav(token, guestName, eventName, themeKey, eventStatus) {
   return {
     token,
     guestName: (guestName || 'Visiteur').trim().slice(0, 120),
     eventName: (eventName || 'Evenement').trim().slice(0, 120),
     eventTheme: eventThemes.getTheme(themeKey),
     eventUrl: `/event/${token}`,
-    galleryUrl: `/event/${token}/gallery`,
+    // Evenement pas encore commence : ni galerie ni envoi.
+    galleryUrl: eventStatus === 'inactive' ? null : `/event/${token}/gallery`,
     // Evenement cloture : le lien d'upload disparait de la navigation.
-    uploadUrl: isClosed ? null : `/event/${token}/upload`,
+    uploadUrl: eventStatus === 'active' ? `/event/${token}/upload` : null,
   };
 }
 
@@ -530,6 +531,14 @@ function isEventClosed(eventItem) {
 }
 
 /**
+ * Un evenement `inactive` n'a pas encore commence : cote visiteur, seule la
+ * page d'accueil (compte a rebours) est accessible, sans envoi ni galerie.
+ */
+function isEventNotStarted(eventItem) {
+  return Boolean(eventItem) && eventItem.status === 'inactive';
+}
+
+/**
  * Refuse une action de modification sur un evenement clos.
  * La cloture est definitive : on ne propose aucune reouverture.
  */
@@ -666,7 +675,7 @@ router.get('/event/:token', param('token').trim().matches(/^[A-Za-z0-9]{10}$/), 
     const now = new Date();
     const startsAtDate = new Date(eventItem.startsAt);
     const hasValidStartDate = !Number.isNaN(startsAtDate.getTime());
-    const shouldShowCountdown = eventItem.status !== 'active'
+    const shouldShowCountdown = isEventNotStarted(eventItem)
       && hasValidStartDate
       && startsAtDate.getTime() > now.getTime();
 
@@ -675,7 +684,7 @@ router.get('/event/:token', param('token').trim().matches(/^[A-Za-z0-9]{10}$/), 
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
-      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, eventItem.status),
       renderedDescriptionHtml: renderEventDescriptionMarkdown(eventItem.description),
       nowIso: new Date().toISOString(),
       eventStartsAtIso: hasValidStartDate ? startsAtDate.toISOString() : null,
@@ -707,6 +716,11 @@ router.get('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{1
       return res.redirect(`/event/${req.params.token}/register`);
     }
 
+    // Evenement pas encore commence : retour a l'accueil (compte a rebours).
+    if (isEventNotStarted(eventItem)) {
+      return res.redirect(`/event/${req.params.token}`);
+    }
+
     // Evenement cloture : plus d'envoi possible, on renvoie vers la galerie.
     if (isEventClosed(eventItem)) {
       return res.redirect(`/event/${req.params.token}/gallery`);
@@ -717,7 +731,7 @@ router.get('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{1
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
-      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, eventItem.status),
       uploadOptions: {
         sourceMode: eventItem.uploadSourceMode,
         allowMultiple: eventItem.uploadAllowMultiple,
@@ -751,6 +765,10 @@ router.get('/event/:token/gallery', param('token').trim().matches(/^[A-Za-z0-9]{
       return res.redirect(`/event/${req.params.token}/register`);
     }
 
+    if (isEventNotStarted(eventItem)) {
+      return res.redirect(`/event/${req.params.token}`);
+    }
+
     const uploadedFiles = await eventFileStore.listByEventAndStatus(eventItem.id, 'approved');
     const galleryFiles = await Promise.all(uploadedFiles.map(async (fileItem) => {
       const hasXl = await imageVariantService.variantExists(eventItem.uuid, fileItem.storedName, 'xl');
@@ -774,7 +792,7 @@ router.get('/event/:token/gallery', param('token').trim().matches(/^[A-Za-z0-9]{
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
-      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, eventItem.status),
       galleryFiles,
     });
   } catch (err) {
@@ -815,6 +833,10 @@ router.get(
           statusCode: 403,
           message: 'Inscription visiteur requise.',
         });
+      }
+
+      if (isEventNotStarted(eventItem)) {
+        return res.status(404).end();
       }
 
       const variant = req.params.variant;
@@ -863,6 +885,10 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
     const guestName = getEventGuestName(req, req.params.token);
     if (!guestName) {
       return res.status(403).json({ message: 'Inscription visiteur requise avant upload.' });
+    }
+
+    if (isEventNotStarted(eventItem)) {
+      return res.status(403).json({ message: 'L\'événement n\'a pas encore commencé : les envois de photos ne sont pas encore ouverts.' });
     }
 
     if (isEventClosed(eventItem)) {
@@ -996,7 +1022,7 @@ router.get('/event/:token/register', param('token').trim().matches(/^[A-Za-z0-9]
       title: `${eventItem.name} - Inscription`,
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
-      eventSiteNav: buildEventSiteNav(req.params.token, null, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+      eventSiteNav: buildEventSiteNav(req.params.token, null, eventItem.name, eventItem.theme, eventItem.status),
       formData: { guestName: '' },
     });
   } catch (err) {
@@ -1017,7 +1043,7 @@ router.post('/event/:token/register', param('token').trim().matches(/^[A-Za-z0-9
         title: `${eventItem.name} - Inscription`,
         pageClass: buildEventPageClass(eventItem.theme),
         eventItem,
-        eventSiteNav: buildEventSiteNav(req.params.token, req.body.guestName || '', eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+        eventSiteNav: buildEventSiteNav(req.params.token, req.body.guestName || '', eventItem.name, eventItem.theme, eventItem.status),
         formData: { guestName: req.body.guestName || '' },
         fieldErrors: collectFieldErrors(result),
       }, 422);
