@@ -2718,6 +2718,31 @@ dd code {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
 }
 
+/* Evenement pas encore ouvert : pas de pastille "en direct" qui pulse. */
+.slideshow-event-pill-idle::after {
+  animation: none;
+  opacity: 0.45;
+}
+
+.slideshow-countdown {
+  padding: 32px 48px;
+}
+
+.slideshow-countdown p {
+  margin: 0;
+}
+
+.slideshow-countdown-value {
+  margin-top: 12px;
+  color: var(--slideshow-title-color);
+  font-family: var(--font-mono);
+  font-size: clamp(3rem, 9vw, 7.5rem);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
 .slideshow-figure {
   z-index: 2;
   display: flex;

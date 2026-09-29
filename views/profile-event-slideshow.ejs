@@ -14,18 +14,33 @@
       data-event-id="<%= editingEvent.id %>"
       data-event-name="<%= editingEvent.name %>"
       data-transition="<%= slideshowTransition || 'fade' %>"
-      data-initial-photos="<%= JSON.stringify(initialPhotos || []) %>">
+      data-initial-photos="<%= JSON.stringify(initialPhotos || []) %>"
+      data-status="<%= editingEvent.status %>"
+      data-starts-at="<%= eventStartsAtIso || '' %>"
+      data-now="<%= nowIso %>"
+      data-show-countdown="<%= shouldShowCountdown ? '1' : '0' %>">
 
       <header class="slideshow-event-banner" aria-label="Nom de l'evenement">
-        <span class="slideshow-event-pill"><%= eventTheme ? eventTheme.icon : '✦' %> En direct</span>
+        <span class="slideshow-event-pill <%= editingEvent.status === 'inactive' ? 'slideshow-event-pill-idle' : '' %>"><%= eventTheme ? eventTheme.icon : '✦' %> <%= editingEvent.status === 'inactive' ? 'Bientôt' : 'En direct' %></span>
         <h1 class="slideshow-event-name"><%= editingEvent.name %></h1>
       </header>
 
       <div class="slideshow-vignette" aria-hidden="true"></div>
 
-      <div id="slideshow-waiting" class="slideshow-waiting">
-        En attente des premières photos…
-      </div>
+      <% if (shouldShowCountdown) { %>
+        <div class="slideshow-waiting slideshow-countdown" aria-live="polite">
+          <p>L'événement commence dans</p>
+          <div id="slideshow-countdown-value" class="slideshow-countdown-value">--:--:--</div>
+        </div>
+      <% } else if (editingEvent.status === 'inactive') { %>
+        <div class="slideshow-waiting">
+          L'événement va bientôt commencer…
+        </div>
+      <% } else { %>
+        <div id="slideshow-waiting" class="slideshow-waiting">
+          En attente des premières photos…
+        </div>
+      <% } %>
 
       <figure id="slideshow-figure" class="slideshow-figure" hidden>
         <img id="slideshow-image" class="slideshow-image" alt="Photo de l'evenement" />

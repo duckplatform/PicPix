@@ -174,16 +174,17 @@ function getEventArchiveRequestEmail(req, token) {
   return email || '';
 }
 
-function buildEventSiteNav(token, guestName, eventName, themeKey, isClosed = false) {
+function buildEventSiteNav(token, guestName, eventName, themeKey, eventStatus) {
   return {
     token,
     guestName: (guestName || 'Visiteur').trim().slice(0, 120),
     eventName: (eventName || 'Evenement').trim().slice(0, 120),
     eventTheme: eventThemes.getTheme(themeKey),
     eventUrl: `/event/${token}`,
-    galleryUrl: `/event/${token}/gallery`,
+    // Evenement pas encore commence : ni galerie ni envoi.
+    galleryUrl: eventStatus === 'inactive' ? null : `/event/${token}/gallery`,
     // Evenement cloture : le lien d'upload disparait de la navigation.
-    uploadUrl: isClosed ? null : `/event/${token}/upload`,
+    uploadUrl: eventStatus === 'active' ? `/event/${token}/upload` : null,
   };
 }
 
@@ -531,6 +532,51 @@ function isEventClosed(eventItem) {
 }
 
 /**
+ * Un evenement `inactive` n'a pas encore commence : cote visiteur, seule la
+ * page d'accueil (compte a rebours) est accessible, sans envoi ni galerie.
+ */
+function isEventNotStarted(eventItem) {
+  return Boolean(eventItem) && eventItem.status === 'inactive';
+}
+
+/**
+ * Etat d'ouverture partage par la page visiteur et le diaporama : le compte a
+ * rebours ne s'affiche que pour un evenement pas encore ouvert dont l'heure
+ * de debut est a venir.
+ */
+function buildEventStartState(eventItem) {
+  const now = new Date();
+  const startsAtDate = new Date(eventItem.startsAt);
+  const hasValidStartDate = !Number.isNaN(startsAtDate.getTime());
+
+  return {
+    nowIso: now.toISOString(),
+    eventStartsAtIso: hasValidStartDate ? startsAtDate.toISOString() : null,
+    shouldShowCountdown: isEventNotStarted(eventItem)
+      && hasValidStartDate
+      && startsAtDate.getTime() > now.getTime(),
+  };
+}
+
+/**
+ * Previent les diaporamas ouverts qu'un evenement a change : ils se
+ * rechargent si son statut ou son heure de debut ne correspond plus a ce
+ * qu'ils affichent (ex. passage du compte a rebours au direct).
+ */
+function notifySlideshowEventUpdated(app, eventItem) {
+  const io = app && app.locals ? app.locals.io : null;
+  if (!io || !eventItem) {
+    return;
+  }
+
+  io.to(`event:${eventItem.id}:slideshow`).emit('slideshow:event-updated', {
+    eventId: eventItem.id,
+    status: eventItem.status,
+    startsAt: buildEventStartState(eventItem).eventStartsAtIso,
+  });
+}
+
+/**
  * URL absolue du site invite, encodee dans le QR code. APP_BASE_URL prime :
  * derriere un proxy, l'hote de la requete n'est pas forcement l'URL publique.
  */
@@ -695,23 +741,14 @@ router.get('/event/:token', param('token').trim().matches(/^[A-Za-z0-9]{10}$/), 
       return res.redirect(`/event/${req.params.token}/register`);
     }
 
-    const now = new Date();
-    const startsAtDate = new Date(eventItem.startsAt);
-    const hasValidStartDate = !Number.isNaN(startsAtDate.getTime());
-    const shouldShowCountdown = eventItem.status !== 'active'
-      && hasValidStartDate
-      && startsAtDate.getTime() > now.getTime();
-
     return renderView(res, 'event', {
       title: eventItem.name,
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
-      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, eventItem.status),
       renderedDescriptionHtml: renderEventDescriptionMarkdown(eventItem.description),
-      nowIso: new Date().toISOString(),
-      eventStartsAtIso: hasValidStartDate ? startsAtDate.toISOString() : null,
-      shouldShowCountdown,
+      ...buildEventStartState(eventItem),
       archiveRequestEmail: getEventArchiveRequestEmail(req, req.params.token),
     });
   } catch (err) {
@@ -739,6 +776,11 @@ router.get('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{1
       return res.redirect(`/event/${req.params.token}/register`);
     }
 
+    // Evenement pas encore commence : retour a l'accueil (compte a rebours).
+    if (isEventNotStarted(eventItem)) {
+      return res.redirect(`/event/${req.params.token}`);
+    }
+
     // Evenement cloture : plus d'envoi possible, on renvoie vers la galerie.
     if (isEventClosed(eventItem)) {
       return res.redirect(`/event/${req.params.token}/gallery`);
@@ -749,7 +791,7 @@ router.get('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{1
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
-      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, eventItem.status),
       uploadOptions: {
         sourceMode: eventItem.uploadSourceMode,
         allowMultiple: eventItem.uploadAllowMultiple,
@@ -783,6 +825,10 @@ router.get('/event/:token/gallery', param('token').trim().matches(/^[A-Za-z0-9]{
       return res.redirect(`/event/${req.params.token}/register`);
     }
 
+    if (isEventNotStarted(eventItem)) {
+      return res.redirect(`/event/${req.params.token}`);
+    }
+
     const uploadedFiles = await eventFileStore.listByEventAndStatus(eventItem.id, 'approved');
     const galleryFiles = await Promise.all(uploadedFiles.map(async (fileItem) => {
       const hasXl = await imageVariantService.variantExists(eventItem.uuid, fileItem.storedName, 'xl');
@@ -806,7 +852,7 @@ router.get('/event/:token/gallery', param('token').trim().matches(/^[A-Za-z0-9]{
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
-      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+      eventSiteNav: buildEventSiteNav(req.params.token, guestName, eventItem.name, eventItem.theme, eventItem.status),
       galleryFiles,
     });
   } catch (err) {
@@ -847,6 +893,10 @@ router.get(
           statusCode: 403,
           message: 'Inscription visiteur requise.',
         });
+      }
+
+      if (isEventNotStarted(eventItem)) {
+        return res.status(404).end();
       }
 
       const variant = req.params.variant;
@@ -895,6 +945,10 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
     const guestName = getEventGuestName(req, req.params.token);
     if (!guestName) {
       return res.status(403).json({ message: 'Inscription visiteur requise avant upload.' });
+    }
+
+    if (isEventNotStarted(eventItem)) {
+      return res.status(403).json({ message: 'L\'événement n\'a pas encore commencé : les envois de photos ne sont pas encore ouverts.' });
     }
 
     if (isEventClosed(eventItem)) {
@@ -1028,7 +1082,7 @@ router.get('/event/:token/register', param('token').trim().matches(/^[A-Za-z0-9]
       title: `${eventItem.name} - Inscription`,
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
-      eventSiteNav: buildEventSiteNav(req.params.token, null, eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+      eventSiteNav: buildEventSiteNav(req.params.token, null, eventItem.name, eventItem.theme, eventItem.status),
       formData: { guestName: '' },
     });
   } catch (err) {
@@ -1049,7 +1103,7 @@ router.post('/event/:token/register', param('token').trim().matches(/^[A-Za-z0-9
         title: `${eventItem.name} - Inscription`,
         pageClass: buildEventPageClass(eventItem.theme),
         eventItem,
-        eventSiteNav: buildEventSiteNav(req.params.token, req.body.guestName || '', eventItem.name, eventItem.theme, isEventClosed(eventItem)),
+        eventSiteNav: buildEventSiteNav(req.params.token, req.body.guestName || '', eventItem.name, eventItem.theme, eventItem.status),
         formData: { guestName: req.body.guestName || '' },
         fieldErrors: collectFieldErrors(result),
       }, 422);
@@ -1437,6 +1491,7 @@ router.get('/profile/events/:id/slideshow', requireAuth, param('id').isInt({ min
       eventTheme: eventThemes.getTheme(editingEvent.theme),
       slideshowTransition: eventTransitions.normalizeTransitionKey(editingEvent.slideshowTransition),
       initialPhotos,
+      ...buildEventStartState(editingEvent),
       footerScriptPaths: ['/socket.io/socket.io.js', '/profile-event-slideshow.js'],
     });
   } catch (err) {
@@ -1672,7 +1727,7 @@ router.put('/profile/events/:id', requireAuth, param('id').isInt({ min: 1 }), ev
 
     const nextModerationEnabled = parseModerationEnabled(req.body.moderationEnabled);
 
-    await eventStore.updateEvent(eventId, {
+    const updatedEvent = await eventStore.updateEvent(eventId, {
       name: req.body.name,
       description: normalizeEventDescriptionMarkdown(req.body.description),
       startsAt: req.body.startsAt,
@@ -1689,6 +1744,8 @@ router.put('/profile/events/:id', requireAuth, param('id').isInt({ min: 1 }), ev
       nextModerationEnabled,
       req.app,
     );
+
+    notifySlideshowEventUpdated(req.app, updatedEvent);
 
     logger.info(`[EVENT] ${req.currentUser.email} a mis a jour son evenement ${editingEvent.uuid}`);
     req.flash('success', autoApprovedCount > 0
@@ -1718,7 +1775,8 @@ router.post('/profile/events/:id/activate', requireAuth, param('id').isInt({ min
     }
 
     if (editingEvent.status !== 'active') {
-      await eventStore.updateEvent(eventId, { status: 'active' });
+      const activatedEvent = await eventStore.updateEvent(eventId, { status: 'active' });
+      notifySlideshowEventUpdated(req.app, activatedEvent);
       logger.info(`[EVENT] ${req.currentUser.email} a active son evenement ${editingEvent.uuid}`);
       req.flash('success', 'Événement activé.');
     } else {
@@ -2145,6 +2203,8 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
       nextModerationEnabled,
       req.app,
     );
+
+    notifySlideshowEventUpdated(req.app, updated);
 
     logger.info(`[ADMIN] ${req.currentUser.email} a mis a jour l'evenement ${updated.uuid}`);
     req.flash('success', autoApprovedCount > 0
