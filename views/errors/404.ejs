@@ -4,14 +4,18 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title><%= title || '404' %> - PicPix</title>
+    <%- include('../partials/fonts') %>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="<%= pageClass || '' %>">
-    <main class="container">
-      <section class="hero">
-        <h1>404</h1>
-        <p>La page demandee est introuvable.</p>
-        <a class="btn" href="/">Retour a l'accueil</a>
+    <main class="container error-page">
+      <section class="card error-card">
+        <p class="error-code">404</p>
+        <h1>La page demandée est introuvable.</h1>
+        <p>Le lien est peut-être incomplet, ou la page a été déplacée.</p>
+        <div class="hero-actions">
+          <a class="btn" href="/">Retour à l'accueil</a>
+        </div>
       </section>
     </main>
   </body>

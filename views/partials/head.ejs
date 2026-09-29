@@ -2,11 +2,15 @@
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title><%= title %> - PicPix</title>
+    <meta name="description" content="PicPix réunit les photos de vos invités dans une galerie privée, projetable en diaporama pendant l'événement." />
+    <meta name="theme-color" content="#f4efe7" />
+    <%- include('fonts') %>
     <link rel="stylesheet" href="/styles.css" />
     <% (typeof headCssPaths !== 'undefined' ? headCssPaths : []).forEach((href) => { %>
       <link rel="stylesheet" href="<%= href %>" />
     <% }) %>
   </head>
   <body class="<%= pageClass || '' %>">
+    <a class="skip-link" href="#contenu">Aller au contenu</a>

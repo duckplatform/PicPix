@@ -38,7 +38,7 @@ const authLimiter = rateLimit({
   max: process.env.NODE_ENV === 'production' ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
-  message: 'Trop de tentatives, veuillez reessayer plus tard.',
+  message: 'Trop de tentatives, veuillez réessayer plus tard.',
 });
 
 const EVENT_DESCRIPTION_RENDER_POLICY = {
@@ -286,7 +286,7 @@ async function loadEventByTokenOr404(req, res) {
   const eventItem = await eventStore.findByToken(req.params.token);
   if (!eventItem) {
     res.status(404).render('errors/404', {
-      title: 'Evenement introuvable',
+      title: 'Événement introuvable',
       pageClass: 'page-error',
     });
     return null;
@@ -343,7 +343,7 @@ function createEventUploadMiddleware(maxFiles = 10) {
 function passwordRules(fieldName = 'password', required = true) {
   const chain = body(fieldName)
     .trim()
-    .isLength({ min: 8, max: 72 }).withMessage('Le mot de passe doit contenir entre 8 et 72 caracteres.')
+    .isLength({ min: 8, max: 72 }).withMessage('Le mot de passe doit contenir entre 8 et 72 caractères.')
     .matches(/[a-z]/).withMessage('Le mot de passe doit contenir au moins une minuscule.')
     .matches(/[A-Z]/).withMessage('Le mot de passe doit contenir au moins une majuscule.')
     .matches(/[0-9]/).withMessage('Le mot de passe doit contenir au moins un chiffre.');
@@ -354,7 +354,7 @@ function passwordRules(fieldName = 'password', required = true) {
 const registrationValidators = [
   body('fullName')
     .trim()
-    .isLength({ min: 2, max: 120 }).withMessage('Le nom complet doit contenir entre 2 et 120 caracteres.'),
+    .isLength({ min: 2, max: 120 }).withMessage('Le nom complet doit contenir entre 2 et 120 caractères.'),
   body('email')
     .trim()
     .isEmail().withMessage('Adresse email invalide.')
@@ -373,14 +373,14 @@ const loginValidators = [
 const adminUserValidators = [
   body('fullName')
     .trim()
-    .isLength({ min: 2, max: 120 }).withMessage('Le nom complet doit contenir entre 2 et 120 caracteres.'),
+    .isLength({ min: 2, max: 120 }).withMessage('Le nom complet doit contenir entre 2 et 120 caractères.'),
   body('email')
     .trim()
     .isEmail().withMessage('Adresse email invalide.')
     .normalizeEmail(),
   body('role')
     .trim()
-    .isIn(['user', 'admin']).withMessage('Role invalide.'),
+    .isIn(['user', 'admin']).withMessage('Rôle invalide.'),
   body('status')
     .trim()
     .isIn(['active', 'disabled']).withMessage('Statut invalide.'),
@@ -390,7 +390,7 @@ const adminUserValidators = [
 const profileValidators = [
   body('fullName')
     .trim()
-    .isLength({ min: 2, max: 120 }).withMessage('Le nom complet doit contenir entre 2 et 120 caracteres.'),
+    .isLength({ min: 2, max: 120 }).withMessage('Le nom complet doit contenir entre 2 et 120 caractères.'),
   body('currentPassword')
     .trim()
     .custom((value, { req }) => {
@@ -413,7 +413,7 @@ const profileValidators = [
 const eventValidators = [
   body('name')
     .trim()
-    .isLength({ min: 3, max: 180 }).withMessage('Le nom de l\'evenement doit contenir entre 3 et 180 caracteres.'),
+    .isLength({ min: 3, max: 180 }).withMessage('Le nom de l\'événement doit contenir entre 3 et 180 caractères.'),
   body('description')
     .custom((value) => {
       const plainText = stripHtmlToText(value);
@@ -425,42 +425,42 @@ const eventValidators = [
     }),
   body('startsAt')
     .trim()
-    .notEmpty().withMessage('La date/heure de l\'evenement est requise.')
+    .notEmpty().withMessage('La date et l\'heure de l\'événement sont requises.')
     .isISO8601().withMessage('Format de date/heure invalide.'),
   body('status')
     .trim()
-    .isIn(['active', 'inactive']).withMessage('Statut evenement invalide.'),
+    .isIn(['active', 'inactive']).withMessage('Statut d\'événement invalide.'),
   body('theme')
     .optional({ values: 'falsy' })
     .trim()
-    .isIn(EVENT_THEME_KEYS).withMessage('Theme evenement invalide.'),
+    .isIn(EVENT_THEME_KEYS).withMessage('Thème d\'événement invalide.'),
   body('slideshowTransition')
     .optional({ values: 'falsy' })
     .trim()
-    .isIn(EVENT_TRANSITION_KEYS).withMessage('Transition slideshow invalide.'),
+    .isIn(EVENT_TRANSITION_KEYS).withMessage('Transition du diaporama invalide.'),
   body('uploadSourceMode')
     .optional({ values: 'falsy' })
     .trim()
-    .isIn(EVENT_UPLOAD_SOURCE_MODES).withMessage('Mode d\'upload invalide.'),
+    .isIn(EVENT_UPLOAD_SOURCE_MODES).withMessage('Source des photos invalide.'),
   body('uploadAllowMultiple')
     .optional({ values: 'falsy' })
-    .isIn(['1', 'true', 'on']).withMessage('Option d\'upload multiple invalide.'),
+    .isIn(['1', 'true', 'on']).withMessage('Option d\'envoi multiple invalide.'),
   body('moderationEnabled')
     .optional({ values: 'falsy' })
-    .isIn(['1', 'true', 'on']).withMessage('Option de moderation invalide.'),
+    .isIn(['1', 'true', 'on']).withMessage('Option de modération invalide.'),
 ];
 
 const adminEventValidators = [
   ...eventValidators,
   body('ownerUserId')
     .trim()
-    .isInt({ min: 1 }).withMessage('Proprietaire invalide.'),
+    .isInt({ min: 1 }).withMessage('Propriétaire invalide.'),
 ];
 
 const eventGuestRegistrationValidators = [
   body('guestName')
     .trim()
-    .isLength({ min: 2, max: 120 }).withMessage('Le nom doit contenir entre 2 et 120 caracteres.'),
+    .isLength({ min: 2, max: 120 }).withMessage('Le nom doit contenir entre 2 et 120 caractères.'),
 ];
 
 const eventArchiveRequestValidators = [
@@ -520,7 +520,7 @@ async function renderProfile(req, res, payload = {}, status = 200) {
 
 function renderEventNotFound(res) {
   return res.status(404).render('errors/404', {
-    title: 'Evenement introuvable',
+    title: 'Événement introuvable',
     pageClass: 'page-error',
   });
 }
@@ -534,7 +534,7 @@ function isEventClosed(eventItem) {
  * La cloture est definitive : on ne propose aucune reouverture.
  */
 function rejectClosedEvent(req, res, redirectTo = '/profile') {
-  req.flash('error', 'Cet evenement est cloture definitivement : il ne peut plus etre modifie.');
+  req.flash('error', 'Cet événement est clôturé définitivement : il ne peut plus être modifié.');
   return res.redirect(redirectTo);
 }
 
@@ -559,8 +559,8 @@ function buildArchiveViewModel(eventItem) {
 async function sendEventArchive(req, res, next, eventItem, redirectTo) {
   if (eventItem.archiveStatus !== 'ready' || !(await eventArchiveService.archiveExists(eventItem.uuid))) {
     req.flash('error', eventItem.archiveStatus === 'failed'
-      ? 'La generation de l\'archive a echoue. Contactez un administrateur.'
-      : 'L\'archive n\'est pas encore prete. Reessayez dans quelques instants.');
+      ? 'La génération de l\'archive a échoué. Contactez un administrateur.'
+      : 'L\'archive n\'est pas encore prête. Réessayez dans quelques instants.');
     return res.redirect(redirectTo);
   }
 
@@ -579,7 +579,7 @@ async function sendEventArchive(req, res, next, eventItem, redirectTo) {
 
 function renderProfileEventCreateForm(req, res, payload = {}, status = 200) {
   return renderView(res, 'profile-event-create', {
-    title: 'Creer un evenement',
+    title: 'Nouvel événement',
     pageClass: 'page-profile',
     formData: {
       status: 'inactive',
@@ -596,7 +596,7 @@ function renderProfileEventCreateForm(req, res, payload = {}, status = 200) {
 
 function renderProfileEventForm(req, res, eventItem, payload = {}, status = 200) {
   return renderView(res, 'profile-event-form', {
-    title: 'Modifier evenement',
+    title: 'Modifier l\'événement',
     pageClass: 'page-profile',
     editingEvent: eventItem,
     formData: {
@@ -647,7 +647,7 @@ router.get('/event/:token', param('token').trim().matches(/^[A-Za-z0-9]{10}$/), 
   const result = validationResult(req);
   if (!result.isEmpty()) {
     return res.status(404).render('errors/404', {
-      title: 'Evenement introuvable',
+      title: 'Événement introuvable',
       pageClass: 'page-error',
     });
   }
@@ -691,7 +691,7 @@ router.get('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{1
   const result = validationResult(req);
   if (!result.isEmpty()) {
     return res.status(404).render('errors/404', {
-      title: 'Evenement introuvable',
+      title: 'Événement introuvable',
       pageClass: 'page-error',
     });
   }
@@ -713,7 +713,7 @@ router.get('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{1
     }
 
     return renderView(res, 'event-upload', {
-      title: `${eventItem.name} - Upload photos`,
+      title: `${eventItem.name} - Envoi de photos`,
       pageClass: buildEventPageClass(eventItem.theme),
       eventItem,
       guestName,
@@ -735,7 +735,7 @@ router.get('/event/:token/gallery', param('token').trim().matches(/^[A-Za-z0-9]{
   const result = validationResult(req);
   if (!result.isEmpty()) {
     return res.status(404).render('errors/404', {
-      title: 'Evenement introuvable',
+      title: 'Événement introuvable',
       pageClass: 'page-error',
     });
   }
@@ -793,7 +793,7 @@ router.get(
     const result = validationResult(req);
     if (!result.isEmpty()) {
       return res.status(404).render('errors/404', {
-        title: 'Evenement introuvable',
+        title: 'Événement introuvable',
         pageClass: 'page-error',
       });
     }
@@ -802,7 +802,7 @@ router.get(
       const eventItem = await eventStore.findByToken(req.params.token);
       if (!eventItem) {
         return res.status(404).render('errors/404', {
-          title: 'Evenement introuvable',
+          title: 'Événement introuvable',
           pageClass: 'page-error',
         });
       }
@@ -810,7 +810,7 @@ router.get(
       const guestName = getEventGuestName(req, req.params.token);
       if (!guestName) {
         return res.status(403).render('errors/500', {
-          title: 'Acces refuse',
+          title: 'Accès refusé',
           pageClass: 'page-error',
           statusCode: 403,
           message: 'Inscription visiteur requise.',
@@ -849,13 +849,13 @@ router.get(
 router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{10}$/), async (req, res, next) => {
   const result = validationResult(req);
   if (!result.isEmpty()) {
-    return res.status(404).json({ message: 'Evenement introuvable.' });
+    return res.status(404).json({ message: 'Événement introuvable.' });
   }
 
   try {
     const eventItem = await eventStore.findByToken(req.params.token);
     if (!eventItem) {
-      return res.status(404).json({ message: 'Evenement introuvable.' });
+      return res.status(404).json({ message: 'Événement introuvable.' });
     }
 
     req.eventItem = eventItem;
@@ -866,7 +866,7 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
     }
 
     if (isEventClosed(eventItem)) {
-      return res.status(403).json({ message: 'Cet evenement est cloture : les envois de photos sont termines.' });
+      return res.status(403).json({ message: 'Cet événement est clôturé : les envois de photos sont terminés.' });
     }
 
     const eventUploadMiddleware = createEventUploadMiddleware(eventItem.uploadAllowMultiple ? 10 : 1);
@@ -874,15 +874,15 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
     return eventUploadMiddleware(req, res, async (uploadErr) => {
       if (uploadErr) {
         if (uploadErr.message === 'INVALID_FILE_TYPE') {
-          return res.status(415).json({ message: 'Seules les images sont autorisees.' });
+          return res.status(415).json({ message: 'Seules les images sont autorisées.' });
         }
 
         if (uploadErr.code === 'LIMIT_FILE_SIZE') {
-          return res.status(413).json({ message: 'Un fichier depasse la taille maximale autorisee (10 Mo).' });
+          return res.status(413).json({ message: 'Un fichier dépasse la taille maximale autorisée (10 Mo).' });
         }
 
         if (uploadErr.code === 'LIMIT_FILE_COUNT') {
-          return res.status(413).json({ message: 'Trop de fichiers envoyes en une seule fois.' });
+          return res.status(413).json({ message: 'Trop de fichiers envoyés en une seule fois.' });
         }
 
         if (uploadErr.code === 'ENOENT') {
@@ -899,7 +899,7 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
         : [];
 
       if (uploadedFiles.length === 0) {
-        return res.status(400).json({ message: 'Aucun fichier image recu.' });
+        return res.status(400).json({ message: 'Aucun fichier image reçu.' });
       }
 
       const createdFiles = [];
@@ -947,8 +947,8 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
 
         return res.status(201).json({
           message: eventItem.moderationEnabled
-            ? `${createdFiles.length} fichier(s) televerse(s) avec succes. Publication apres moderation.`
-            : `${createdFiles.length} fichier(s) televerse(s) avec succes.`,
+            ? `${createdFiles.length} photo(s) envoyée(s). Publication après modération.`
+            : `${createdFiles.length} photo(s) envoyée(s).`,
           files: createdFiles,
         });
       } catch (err) {
@@ -961,7 +961,7 @@ router.post('/event/:token/upload', param('token').trim().matches(/^[A-Za-z0-9]{
 
         // Cloture survenue pendant la reception de l'envoi (cf. createFileRecord).
         if (err.code === 'EVENT_CLOSED') {
-          return res.status(403).json({ message: 'Cet evenement est cloture : les envois de photos sont termines.' });
+          return res.status(403).json({ message: 'Cet événement est clôturé : les envois de photos sont terminés.' });
         }
 
         return next(err);
@@ -976,7 +976,7 @@ router.get('/event/:token/register', param('token').trim().matches(/^[A-Za-z0-9]
   const result = validationResult(req);
   if (!result.isEmpty()) {
     return res.status(404).render('errors/404', {
-      title: 'Evenement introuvable',
+      title: 'Événement introuvable',
       pageClass: 'page-error',
     });
   }
@@ -1090,9 +1090,9 @@ router.post('/event/:token/archive-request', param('token').trim().matches(/^[A-
         void archiveNotificationService.notifyArchiveRequesters(eventItem, { emails: [email] }).catch((err) => {
           logger.error(`[ARCHIVE-MAIL] Notification immediate echouee pour ${eventItem.uuid}: ${err.message}`);
         });
-        req.flash('success', `L'archive des photos est deja prete : le lien vous est envoye a ${email}.`);
+        req.flash('success', `L'archive des photos est déjà prête : le lien vous est envoyé à ${email}.`);
       } else {
-        req.flash('success', `Vous recevrez l'archive des photos a ${email} des sa generation.`);
+        req.flash('success', `Vous recevrez l'archive des photos à ${email} dès sa génération.`);
       }
     } else {
       if (previousEmail) {
@@ -1118,7 +1118,7 @@ router.get('/event/:token/archive', param('token').trim().matches(/^[A-Za-z0-9]{
   const result = validationResult(req);
   if (!result.isEmpty()) {
     return res.status(404).render('errors/404', {
-      title: 'Evenement introuvable',
+      title: 'Événement introuvable',
       pageClass: 'page-error',
     });
   }
@@ -1179,7 +1179,7 @@ router.post('/register', authLimiter, ensureGuest, registrationValidators, async
 
     await establishUserSession(req, user.id);
     logger.info(`[AUTH] Nouvelle inscription: ${user.email}`);
-    req.flash('success', 'Votre compte a ete cree.');
+    req.flash('success', 'Votre compte a été créé.');
     return res.redirect('/profile');
   } catch (err) {
     if (err.code === 'EMAIL_ALREADY_EXISTS') {
@@ -1227,7 +1227,7 @@ router.post('/login', authLimiter, ensureGuest, loginValidators, async (req, res
     await establishUserSession(req, user.id);
     await userStore.updateLastLogin(user.id);
     logger.info(`[AUTH] Connexion reussie: ${user.email}`);
-    req.flash('success', 'Connexion reussie.');
+    req.flash('success', 'Connexion réussie.');
     return res.redirect('/profile');
   } catch (err) {
     return next(err);
@@ -1287,7 +1287,7 @@ router.put('/profile', requireAuth, profileValidators, async (req, res, next) =>
     });
 
     logger.info(`[PROFILE] Mise a jour du profil: ${req.currentUser.email}`);
-    req.flash('success', 'Votre profil a ete mis a jour.');
+    req.flash('success', 'Votre profil a été mis à jour.');
     return res.redirect('/profile');
   } catch (err) {
     return next(err);
@@ -1321,7 +1321,7 @@ router.post('/profile/events', requireAuth, eventValidators, async (req, res, ne
     });
 
     logger.info(`[EVENT] ${req.currentUser.email} a cree l'evenement ${req.body.name}`);
-    req.flash('success', 'Evenement cree avec succes.');
+    req.flash('success', 'Événement créé.');
     return res.redirect('/profile');
   } catch (err) {
     return next(err);
@@ -1399,7 +1399,7 @@ router.get('/profile/events/:id/slideshow', requireAuth, param('id').isInt({ min
     }));
 
     return renderView(res, 'profile-event-slideshow', {
-      title: `Slideshow - ${editingEvent.name}`,
+      title: `Diaporama - ${editingEvent.name}`,
       pageClass: 'page-profile',
       editingEvent,
       eventTheme: eventThemes.getTheme(editingEvent.theme),
@@ -1467,7 +1467,7 @@ router.get('/profile/event/:id/moderation', requireAuth, param('id').isInt({ min
       .filter((fileItem) => fileItem.moderationStatus === 'pending');
 
     return renderView(res, 'profile-event-moderation', {
-      title: `Moderation - ${editingEvent.name}`,
+      title: `Modération - ${editingEvent.name}`,
       pageClass: 'page-profile',
       editingEvent,
       moderationFiles,
@@ -1492,7 +1492,7 @@ router.post(
       const fileId = Number(req.params.fileId);
       const moderationStatus = req.body.moderationStatus;
       if (!eventFileStore.MODERATION_STATUSES.has(moderationStatus)) {
-        req.flash('error', 'Statut de moderation invalide.');
+        req.flash('error', 'Statut de modération invalide.');
         return res.redirect(`/profile/event/${eventId}/moderation`);
       }
 
@@ -1555,8 +1555,8 @@ router.post(
       }
 
       req.flash('success', moderationStatus === 'approved'
-        ? 'Photo approuvee et visible sur le slideshow.'
-        : (moderationStatus === 'rejected' ? 'Photo rejetee.' : 'Photo remise en attente.'));
+        ? 'Photo approuvée et visible dans le diaporama.'
+        : (moderationStatus === 'rejected' ? 'Photo rejetée.' : 'Photo remise en attente.'));
       return res.redirect(`/profile/event/${eventId}/moderation`);
     } catch (err) {
       return next(err);
@@ -1660,8 +1660,8 @@ router.put('/profile/events/:id', requireAuth, param('id').isInt({ min: 1 }), ev
 
     logger.info(`[EVENT] ${req.currentUser.email} a mis a jour son evenement ${editingEvent.uuid}`);
     req.flash('success', autoApprovedCount > 0
-      ? `Evenement mis a jour. ${autoApprovedCount} photo(s) en attente ont ete automatiquement approuvees.`
-      : 'Evenement mis a jour.');
+      ? `Événement mis à jour. ${autoApprovedCount} photo(s) en attente ont été automatiquement approuvées.`
+      : 'Événement mis à jour.');
     return res.redirect('/profile');
   } catch (err) {
     return next(err);
@@ -1688,9 +1688,9 @@ router.post('/profile/events/:id/activate', requireAuth, param('id').isInt({ min
     if (editingEvent.status !== 'active') {
       await eventStore.updateEvent(eventId, { status: 'active' });
       logger.info(`[EVENT] ${req.currentUser.email} a active son evenement ${editingEvent.uuid}`);
-      req.flash('success', 'Evenement active.');
+      req.flash('success', 'Événement activé.');
     } else {
-      req.flash('success', 'Evenement deja actif.');
+      req.flash('success', 'Événement déjà actif.');
     }
 
     return res.redirect('/profile');
@@ -1721,7 +1721,7 @@ router.post('/profile/events/:id/close', requireAuth, param('id').isInt({ min: 1
     }
 
     if (isEventClosed(editingEvent)) {
-      req.flash('error', 'Cet evenement est deja cloture.');
+      req.flash('error', 'Cet événement est déjà clôturé.');
       return res.redirect('/profile');
     }
 
@@ -1730,7 +1730,7 @@ router.post('/profile/events/:id/close', requireAuth, param('id').isInt({ min: 1
     // double-submit accidentel.
     // Meme normalisation que la popup (trim), qui active le bouton sur ce critere.
     if (String(req.body.confirmClose || '').trim() !== 'CLOTURER') {
-      req.flash('error', 'Cloture annulee : la confirmation est obligatoire.');
+      req.flash('error', 'Clôture annulée : la confirmation est obligatoire.');
       return res.redirect('/profile');
     }
 
@@ -1739,8 +1739,8 @@ router.post('/profile/events/:id/close', requireAuth, param('id').isInt({ min: 1
     // serait perdue. On exige donc que tout soit tranche avant de figer.
     const pendingCount = await eventFileStore.countByEventAndStatus(eventId, 'pending');
     if (pendingCount > 0) {
-      req.flash('error', `Cloture impossible : ${pendingCount} photo(s) attendent encore votre moderation. `
-        + 'Approuvez-les ou rejetez-les avant de cloturer, sinon elles seraient definitivement perdues.');
+      req.flash('error', `Clôture impossible : ${pendingCount} photo(s) attendent encore votre modération. `
+        + 'Approuvez-les ou rejetez-les avant de clôturer, sinon elles seraient définitivement perdues.');
       return res.redirect(`/profile/event/${eventId}/moderation`);
     }
 
@@ -1753,20 +1753,20 @@ router.post('/profile/events/:id/close', requireAuth, param('id').isInt({ min: 1
         throw closeErr;
       }
 
-      req.flash('error', 'Cloture impossible : de nouvelles photos attendent votre moderation. '
-        + 'Approuvez-les ou rejetez-les avant de cloturer.');
+      req.flash('error', 'Clôture impossible : de nouvelles photos attendent votre modération. '
+        + 'Approuvez-les ou rejetez-les avant de clôturer.');
       return res.redirect(`/profile/event/${eventId}/moderation`);
     }
 
     if (!closedEvent) {
-      req.flash('error', 'Cet evenement est deja cloture.');
+      req.flash('error', 'Cet événement est déjà clôturé.');
       return res.redirect('/profile');
     }
 
     eventArchiveService.enqueueArchiveGeneration(closedEvent.id);
 
     logger.info(`[EVENT] ${req.currentUser.email} a cloture definitivement l'evenement ${closedEvent.uuid}`);
-    req.flash('success', 'Evenement cloture definitivement. L\'archive ZIP des photos est en cours de preparation.');
+    req.flash('success', 'Événement clôturé définitivement. L\'archive ZIP des photos est en cours de préparation.');
     return res.redirect('/profile');
   } catch (err) {
     return next(err);
@@ -1780,13 +1780,13 @@ router.post('/profile/events/:id/close', requireAuth, param('id').isInt({ min: 1
 router.get('/profile/events/:id/archive/status', requireAuth, param('id').isInt({ min: 1 }), async (req, res, next) => {
   const result = validationResult(req);
   if (!result.isEmpty()) {
-    return res.status(400).json({ error: 'Identifiant d\'evenement invalide.' });
+    return res.status(400).json({ error: 'Identifiant d\'événement invalide.' });
   }
 
   try {
     const eventItem = await findOwnedEvent(req.currentUser.id, Number(req.params.id));
     if (!eventItem) {
-      return res.status(404).json({ error: 'Evenement introuvable.' });
+      return res.status(404).json({ error: 'Événement introuvable.' });
     }
 
     return res.json(buildArchiveViewModel(eventItem));
@@ -1835,7 +1835,7 @@ router.post('/profile/events/:id/regenerate-token', requireAuth, param('id').isI
     await eventStore.updateEvent(eventId, { token: newToken });
 
     logger.info(`[EVENT] ${req.currentUser.email} a regenere le token de ${editingEvent.uuid}`);
-    req.flash('success', 'Token regenere avec succes.');
+    req.flash('success', 'Lien invité régénéré.');
     return res.redirect(`/profile/events/${eventId}/edit`);
   } catch (err) {
     return next(err);
@@ -1857,7 +1857,7 @@ router.delete('/profile/events/:id', requireAuth, param('id').isInt({ min: 1 }),
 
     await eventStore.deleteEvent(eventId);
     logger.info(`[EVENT] ${req.currentUser.email} a supprime son evenement ${editingEvent.uuid}`);
-    req.flash('success', 'Evenement supprime.');
+    req.flash('success', 'Événement supprimé.');
     return res.redirect('/profile');
   } catch (err) {
     return next(err);
@@ -1883,7 +1883,7 @@ router.get('/admin/settings', requireAdmin, async (req, res, next) => {
   try {
     const mailNotificationsEnabled = await settingsStore.getBoolSetting('mail_archive_notifications_enabled', false);
     return renderView(res, 'admin/settings', {
-      title: 'Reglages',
+      title: 'Réglages',
       pageClass: 'page-admin',
       mailNotificationsEnabled,
       mailEnvConfigured: mailService.isEnvConfigured(),
@@ -1897,7 +1897,7 @@ router.get('/admin/settings', requireAdmin, async (req, res, next) => {
 router.post('/admin/settings', requireAdmin, async (req, res, next) => {
   try {
     await settingsStore.setBoolSetting('mail_archive_notifications_enabled', req.body.mailNotificationsEnabled === '1');
-    req.flash('success', 'Reglages mis a jour.');
+    req.flash('success', 'Réglages mis à jour.');
     return res.redirect('/admin/settings');
   } catch (err) {
     return next(err);
@@ -1908,7 +1908,7 @@ router.get('/admin/events/new', requireAdmin, async (req, res, next) => {
   try {
     const users = await userStore.listUsers();
     return renderView(res, 'admin/event-form', {
-      title: 'Nouvel evenement',
+      title: 'Nouvel événement',
       pageClass: 'page-admin',
       mode: 'create',
       users,
@@ -1934,7 +1934,7 @@ router.post('/admin/events', requireAdmin, adminEventValidators, async (req, res
     try {
       const users = await userStore.listUsers();
       return renderView(res, 'admin/event-form', {
-        title: 'Nouvel evenement',
+        title: 'Nouvel événement',
         pageClass: 'page-admin',
         mode: 'create',
         users,
@@ -1963,7 +1963,7 @@ router.post('/admin/events', requireAdmin, adminEventValidators, async (req, res
     });
 
     logger.info(`[ADMIN] ${req.currentUser.email} a cree un evenement (${req.body.name})`);
-    req.flash('success', 'Evenement cree avec succes.');
+    req.flash('success', 'Événement créé.');
     return res.redirect('/admin');
   } catch (err) {
     return next(err);
@@ -1974,7 +1974,7 @@ router.get('/admin/events/:id/edit', requireAdmin, param('id').isInt({ min: 1 })
   const result = validationResult(req);
   if (!result.isEmpty()) {
     return res.status(404).render('errors/404', {
-      title: 'Evenement introuvable',
+      title: 'Événement introuvable',
       pageClass: 'page-error',
     });
   }
@@ -1983,7 +1983,7 @@ router.get('/admin/events/:id/edit', requireAdmin, param('id').isInt({ min: 1 })
     const editingEvent = await eventStore.findById(Number(req.params.id));
     if (!editingEvent) {
       return res.status(404).render('errors/404', {
-        title: 'Evenement introuvable',
+        title: 'Événement introuvable',
         pageClass: 'page-error',
       });
     }
@@ -1995,7 +1995,7 @@ router.get('/admin/events/:id/edit', requireAdmin, param('id').isInt({ min: 1 })
     const users = await userStore.listUsers();
     const eventFiles = await eventFileStore.listByEvent(editingEvent.id);
     return renderView(res, 'admin/event-form', {
-      title: 'Modifier evenement',
+      title: 'Modifier l\'événement',
       pageClass: 'page-admin',
       mode: 'edit',
       users,
@@ -2020,7 +2020,7 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
       const editingEvent = await eventStore.findById(eventId);
       const eventFiles = editingEvent ? await eventFileStore.listByEvent(editingEvent.id) : [];
       return renderView(res, 'admin/event-form', {
-        title: 'Modifier evenement',
+        title: 'Modifier l\'événement',
         pageClass: 'page-admin',
         mode: 'edit',
         users,
@@ -2038,7 +2038,7 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
     const currentEvent = await eventStore.findById(eventId);
     if (!currentEvent) {
       return res.status(404).render('errors/404', {
-        title: 'Evenement introuvable',
+        title: 'Événement introuvable',
         pageClass: 'page-error',
       });
     }
@@ -2064,7 +2064,7 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
 
     if (!updated) {
       return res.status(404).render('errors/404', {
-        title: 'Evenement introuvable',
+        title: 'Événement introuvable',
         pageClass: 'page-error',
       });
     }
@@ -2077,8 +2077,8 @@ router.put('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), adm
 
     logger.info(`[ADMIN] ${req.currentUser.email} a mis a jour l'evenement ${updated.uuid}`);
     req.flash('success', autoApprovedCount > 0
-      ? `Evenement mis a jour. ${autoApprovedCount} photo(s) en attente ont ete automatiquement approuvees.`
-      : 'Evenement mis a jour.');
+      ? `Événement mis à jour. ${autoApprovedCount} photo(s) en attente ont été automatiquement approuvées.`
+      : 'Événement mis à jour.');
     return res.redirect('/admin');
   } catch (err) {
     return next(err);
@@ -2118,9 +2118,9 @@ router.post('/admin/events/:id/archive/retry', requireAdmin, param('id').isInt({
     const restarted = await eventArchiveService.retryArchiveGeneration(Number(req.params.id));
     if (restarted) {
       logger.info(`[ADMIN] ${req.currentUser.email} a relance l'archive de l'evenement ${req.params.id}`);
-      req.flash('success', 'Generation de l\'archive relancee.');
+      req.flash('success', 'Génération de l\'archive relancée.');
     } else {
-      req.flash('error', 'Seule une archive en echec d\'un evenement cloture peut etre relancee.');
+      req.flash('error', 'Seule une archive en échec d\'un événement clôturé peut être relancée.');
     }
 
     return res.redirect('/admin');
@@ -2150,7 +2150,7 @@ router.post('/admin/events/:id/regenerate-token', requireAdmin, param('id').isIn
     await eventStore.updateEvent(eventId, { token: newToken });
 
     logger.info(`[ADMIN] ${req.currentUser.email} a regenere le token de l'evenement ${editingEvent.uuid}`);
-    req.flash('success', 'Token regenere avec succes.');
+    req.flash('success', 'Lien invité régénéré.');
     return res.redirect(`/admin/events/${eventId}/edit`);
   } catch (err) {
     return next(err);
@@ -2161,7 +2161,7 @@ router.delete('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), 
   const result = validationResult(req);
   if (!result.isEmpty()) {
     return res.status(404).render('errors/404', {
-      title: 'Evenement introuvable',
+      title: 'Événement introuvable',
       pageClass: 'page-error',
     });
   }
@@ -2169,7 +2169,7 @@ router.delete('/admin/events/:id', requireAdmin, param('id').isInt({ min: 1 }), 
   try {
     await eventStore.deleteEvent(Number(req.params.id));
     logger.info(`[ADMIN] ${req.currentUser.email} a supprime l'evenement #${req.params.id}`);
-    req.flash('success', 'Evenement supprime.');
+    req.flash('success', 'Événement supprimé.');
     return res.redirect('/admin');
   } catch (err) {
     return next(err);
@@ -2214,7 +2214,7 @@ router.post('/admin/users', requireAdmin, adminUserValidators, async (req, res, 
     });
 
     logger.info(`[ADMIN] ${req.currentUser.email} a cree l'utilisateur ${req.body.email}`);
-    req.flash('success', 'Utilisateur cree avec succes.');
+    req.flash('success', 'Utilisateur créé.');
     return res.redirect('/admin');
   } catch (err) {
     if (err.code === 'EMAIL_ALREADY_EXISTS') {
@@ -2254,7 +2254,7 @@ router.get('/admin/users/:id/edit', requireAdmin, param('id').isInt({ min: 1 }),
     const userEvents = await eventStore.listByOwner(editingUser.id);
 
     return renderView(res, 'admin/user-form', {
-      title: 'Modifier un utilisateur',
+      title: 'Modifier l\'utilisateur',
       pageClass: 'page-admin',
       mode: 'edit',
       editingUser,
@@ -2273,7 +2273,7 @@ router.put('/admin/users/:id', requireAdmin, param('id').isInt({ min: 1 }), admi
     const editingUser = await userStore.findPublicById(userId);
     const userEvents = editingUser ? await eventStore.listByOwner(editingUser.id) : [];
     return renderView(res, 'admin/user-form', {
-      title: 'Modifier un utilisateur',
+      title: 'Modifier l\'utilisateur',
       pageClass: 'page-admin',
       mode: 'edit',
       editingUser,
@@ -2293,19 +2293,19 @@ router.put('/admin/users/:id', requireAdmin, param('id').isInt({ min: 1 }), admi
     }
 
     if (targetUser.id === req.currentUser.id && req.body.role !== 'admin') {
-      req.flash('error', 'Vous ne pouvez pas retirer votre propre role administrateur.');
+      req.flash('error', 'Vous ne pouvez pas retirer votre propre rôle administrateur.');
       return res.redirect(`/admin/users/${targetUser.id}/edit`);
     }
 
     if (targetUser.id === req.currentUser.id && req.body.status !== 'active') {
-      req.flash('error', 'Vous ne pouvez pas desactiver votre propre compte.');
+      req.flash('error', 'Vous ne pouvez pas désactiver votre propre compte.');
       return res.redirect(`/admin/users/${targetUser.id}/edit`);
     }
 
     if (targetUser.role === 'admin' && targetUser.status === 'active') {
       const remainingAdmins = await userStore.countActiveAdmins(targetUser.id);
       if ((req.body.role !== 'admin' || req.body.status !== 'active') && remainingAdmins === 0) {
-        req.flash('error', 'Au moins un administrateur actif doit etre conserve.');
+        req.flash('error', 'Au moins un administrateur actif doit être conservé.');
         return res.redirect(`/admin/users/${targetUser.id}/edit`);
       }
     }
@@ -2319,14 +2319,14 @@ router.put('/admin/users/:id', requireAdmin, param('id').isInt({ min: 1 }), admi
     });
 
     logger.info(`[ADMIN] ${req.currentUser.email} a mis a jour l'utilisateur ${targetUser.email}`);
-    req.flash('success', 'Utilisateur mis a jour.');
+    req.flash('success', 'Utilisateur mis à jour.');
     return res.redirect('/admin');
   } catch (err) {
     if (err.code === 'EMAIL_ALREADY_EXISTS') {
       const editingUser = await userStore.findPublicById(userId);
       const userEvents = editingUser ? await eventStore.listByOwner(editingUser.id) : [];
       return renderView(res, 'admin/user-form', {
-        title: 'Modifier un utilisateur',
+        title: 'Modifier l\'utilisateur',
         pageClass: 'page-admin',
         mode: 'edit',
         editingUser,
@@ -2366,7 +2366,7 @@ router.delete('/admin/users/:id', requireAdmin, param('id').isInt({ min: 1 }), a
     if (targetUser.role === 'admin' && targetUser.status === 'active') {
       const remainingAdmins = await userStore.countActiveAdmins(targetUser.id);
       if (remainingAdmins === 0) {
-        req.flash('error', 'Au moins un administrateur actif doit etre conserve.');
+        req.flash('error', 'Au moins un administrateur actif doit être conservé.');
         return res.redirect('/admin');
       }
     }
@@ -2376,7 +2376,7 @@ router.delete('/admin/users/:id', requireAdmin, param('id').isInt({ min: 1 }), a
     await eventStore.deleteEventsByOwner(targetUser.id);
     await userStore.deleteUser(targetUser.id);
     logger.info(`[ADMIN] ${req.currentUser.email} a supprime l'utilisateur ${targetUser.email}`);
-    req.flash('success', 'Utilisateur supprime.');
+    req.flash('success', 'Utilisateur supprimé.');
     return res.redirect('/admin');
   } catch (err) {
     return next(err);
@@ -2395,7 +2395,7 @@ router.get(
     const result = validationResult(req);
     if (!result.isEmpty()) {
       return res.status(404).render('errors/404', {
-        title: 'Evenement introuvable',
+        title: 'Événement introuvable',
         pageClass: 'page-error',
       });
     }
@@ -2404,7 +2404,7 @@ router.get(
       const eventItem = await eventStore.findById(Number(req.params.id));
       if (!eventItem) {
         return res.status(404).render('errors/404', {
-          title: 'Evenement introuvable',
+          title: 'Événement introuvable',
           pageClass: 'page-error',
         });
       }

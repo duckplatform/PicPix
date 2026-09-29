@@ -1,31 +1,31 @@
 <%- include('partials/head') %>
 <%- include('partials/header') %>
-<section class="hero countdown-layout">
-  <p class="eyebrow">Evenement public</p>
+<section class="hero countdown-layout event-hero">
+  <p class="eyebrow">Vous êtes invité</p>
   <div class="richtext-content"><%- renderedDescriptionHtml %></div>
-  <p>Debut: <strong><%= formatDateTime(eventItem.startsAt) %></strong></p>
+  <p class="event-date"><%- include('partials/icon', { name: 'calendar', size: 18 }) %><span>Début : <strong><%= formatDateTime(eventItem.startsAt) %></strong></span></p>
   <div class="hero-actions">
-    <a class="btn" href="/event/<%= eventItem.token %>/upload">Deposer des photos</a>
-    <a class="btn btn-secondary" href="/event/<%= eventItem.token %>/gallery">Voir la galerie</a>
+    <a class="btn btn-lg" href="/event/<%= eventItem.token %>/upload"><%- include('partials/icon', { name: 'camera', size: 18 }) %>Déposer des photos</a>
+    <a class="btn btn-secondary btn-lg" href="/event/<%= eventItem.token %>/gallery"><%- include('partials/icon', { name: 'images', size: 18 }) %>Voir la galerie</a>
   </div>
 
   <section id="countdownScreen" class="countdown-screen" aria-live="polite" <%= shouldShowCountdown ? '' : 'hidden' %>>
-    <h2>L'evenement commence bientot</h2>
-    <p>Temps restant avant ouverture :</p>
+    <h2>L'événement commence bientôt</h2>
+    <p>Temps restant avant l'ouverture</p>
     <div id="countdownValue" class="countdown-value">--:--:--</div>
   </section>
 
   <section id="welcomeScreen" class="welcome-screen" aria-live="polite" <%= shouldShowCountdown ? 'hidden' : '' %>>
-    <h2>Bienvenue</h2>
-    <p>L'evenement est commence. Bonne session.</p>
+    <h2>C'est parti</h2>
+    <p>L'événement a commencé : partagez vos plus belles photos au fil de la journée.</p>
   </section>
 </section>
 
-<section class="card form-card">
+<section class="card form-card section-gap">
   <div>
     <p class="eyebrow">Archive photos</p>
-    <h2>Recevoir l'archive des photos</h2>
-    <p>Cochez cette case pour recevoir par email le lien de telechargement de l'archive complete des photos, des qu'elle sera generee a la cloture de l'evenement.</p>
+    <h2>Recevoir toutes les photos</h2>
+    <p>Recevez par email le lien de téléchargement de l'archive complète, dès qu'elle sera générée à la clôture de l'événement.</p>
   </div>
 
   <form method="post" action="/event/<%= eventItem.token %>/archive-request" class="form-grid">
@@ -34,16 +34,16 @@
     <label>
       <span class="checkbox-label">
         <input type="checkbox" id="archiveRequestCheckbox" name="wantsArchive" value="1" <%= archiveRequestEmail ? 'checked' : '' %> />
-        Je souhaite recevoir l'archive des photos par email a la fin de l'evenement
+        Je souhaite recevoir l'archive des photos par email à la fin de l'événement
       </span>
     </label>
 
     <label id="archiveRequestEmailField" <%= archiveRequestEmail ? '' : 'hidden' %>>
       <span>Votre email</span>
-      <input type="email" name="email" value="<%= archiveRequestEmail || '' %>" maxlength="190" />
+      <input type="email" name="email" value="<%= archiveRequestEmail || '' %>" maxlength="190" autocomplete="email" />
     </label>
 
-    <button class="btn" type="submit">Enregistrer</button>
+    <button class="btn btn-secondary" type="submit">Enregistrer ma préférence</button>
   </form>
 </section>
 

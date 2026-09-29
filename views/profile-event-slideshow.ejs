@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title><%= editingEvent.name %> - Slideshow</title>
+    <%- include('partials/fonts') %>
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="slideshow-fullscreen-body event-theme-<%= eventTheme ? eventTheme.key : 'classic' %>">
@@ -16,14 +17,14 @@
       data-initial-photos="<%= JSON.stringify(initialPhotos || []) %>">
 
       <header class="slideshow-event-banner" aria-label="Nom de l'evenement">
-        <span class="slideshow-event-pill"><%= eventTheme ? eventTheme.icon : '✦' %> Evenement</span>
+        <span class="slideshow-event-pill"><%= eventTheme ? eventTheme.icon : '✦' %> En direct</span>
         <h1 class="slideshow-event-name"><%= editingEvent.name %></h1>
       </header>
 
       <div class="slideshow-vignette" aria-hidden="true"></div>
 
       <div id="slideshow-waiting" class="slideshow-waiting">
-        Aucune photo pour le moment. En attente de nouveaux envois…
+        En attente des premières photos…
       </div>
 
       <figure id="slideshow-figure" class="slideshow-figure" hidden>

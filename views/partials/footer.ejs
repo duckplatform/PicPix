@@ -1,4 +1,12 @@
 </main>
+  <% if (!(typeof eventSiteNav !== 'undefined' && eventSiteNav)) { %>
+    <footer class="site-footer">
+      <div class="container site-footer-inner">
+        <a class="brand" href="/" aria-label="PicPix, accueil"><%- include('logo') %><span class="brand-word">PicPix</span></a>
+        <p>Les photos de vos invités, réunies au même endroit.</p>
+      </div>
+    </footer>
+  <% } %>
   <% (typeof footerScriptPaths !== 'undefined' ? footerScriptPaths : []).forEach((src) => { %>
     <script src="<%= src %>"></script>
   <% }) %>

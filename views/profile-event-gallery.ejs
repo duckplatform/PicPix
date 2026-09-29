@@ -3,18 +3,18 @@
 
 <section class="card form-card">
   <div>
-    <p class="eyebrow">Mon evenement</p>
-    <h1>Galerie proprietaire</h1>
-    <p>Visualisation des photos de l'evenement <strong><%= editingEvent.name %></strong>.</p>
+    <p class="eyebrow">Mon événement</p>
+    <h1>Galerie photos</h1>
+    <p>Toutes les photos publiées de <strong><%= editingEvent.name %></strong>.</p>
   </div>
 
   <div class="table-actions">
-    <a class="btn btn-secondary" href="/profile/events/<%= editingEvent.id %>/edit">Retour a l'edition</a>
-    <a class="btn" href="/event/<%= editingEvent.token %>/gallery" target="_blank" rel="noopener noreferrer">Voir la galerie publique</a>
+    <a class="btn btn-secondary" href="/profile/events/<%= editingEvent.id %>/edit">Retour à l'édition</a>
+    <a class="btn" href="/event/<%= editingEvent.token %>/gallery" target="_blank" rel="noopener noreferrer">Voir la galerie invités</a>
   </div>
 
   <% if (!galleryFiles.length) { %>
-    <p class="section-gap">Aucune photo disponible pour le moment.</p>
+    <div class="empty-state section-gap"><strong>Aucune photo disponible pour le moment.</strong><p>Les photos envoyées par vos invités apparaîtront ici.</p></div>
   <% } else { %>
     <div class="event-gallery-grid section-gap">
       <% galleryFiles.forEach((fileItem) => { %>

@@ -62,7 +62,7 @@ describe('Tests applicatifs HTTP', () => {
       const res = await request(app).get('/');
 
       expect(res.status).to.equal(200);
-      expect(res.text).to.include('Toutes les photos de votre evenement, reunies au meme endroit');
+      expect(res.text).to.include('Toutes les photos de votre événement');
       expect(res.headers['content-type']).to.match(/text\/html/);
     });
 
@@ -77,7 +77,7 @@ describe('Tests applicatifs HTTP', () => {
       const res = await request(app).get('/inconnu');
 
       expect(res.status).to.equal(404);
-      expect(res.text).to.include('La page demandee est introuvable');
+      expect(res.text).to.include('La page demandée est introuvable');
     });
 
     it('GET /event/:token affiche le bienvenue si l\'evenement est actif avant l\'heure', async () => {
@@ -271,7 +271,7 @@ describe('Tests applicatifs HTTP', () => {
 
       const galleryPage = await agent.get(`/event/${createdEvent.token}/gallery`);
       expect(galleryPage.status).to.equal(200);
-      expect(galleryPage.text).to.include('Galerie evenement');
+      expect(galleryPage.text).to.include("Galerie de l'événement");
       expect(galleryPage.text).to.include(`/event/${createdEvent.token}/media/${storedName}/original`);
     });
 
@@ -346,7 +346,7 @@ describe('Tests applicatifs HTTP', () => {
       const res = await request(app).get('/event/AAAAAAAAAA');
 
       expect(res.status).to.equal(404);
-      expect(res.text).to.include('La page demandee est introuvable');
+      expect(res.text).to.include('La page demandée est introuvable');
     });
   });
 
@@ -430,7 +430,7 @@ describe('Tests applicatifs HTTP', () => {
 
       const adminResponse = await agent.get('/admin');
       expect(adminResponse.status).to.equal(403);
-      expect(adminResponse.text).to.include('droits necessaires');
+      expect(adminResponse.text).to.include('droits nécessaires');
     });
 
     it('permet a un utilisateur de creer et consulter ses evenements depuis le profil', async () => {
@@ -490,7 +490,7 @@ describe('Tests applicatifs HTTP', () => {
 
       const ownerGallery = await agent.get(`/profile/events/${events[0].id}/gallery`);
       expect(ownerGallery.status).to.equal(200);
-      expect(ownerGallery.text).to.include('Galerie proprietaire');
+      expect(ownerGallery.text).to.include('Galerie photos');
 
       const ownerSlideshow = await agent.get(`/profile/events/${events[0].id}/slideshow`);
       expect(ownerSlideshow.status).to.equal(200);
@@ -617,7 +617,7 @@ describe('Tests applicatifs HTTP', () => {
 
       const uploadPage = await guestAgent.get(`/event/${createdEvent.token}/upload`);
       expect(uploadPage.status).to.equal(200);
-      expect(uploadPage.text).to.include('publiees apres validation');
+      expect(uploadPage.text).to.include('publiées après validation');
       const uploadCsrfToken = extractCsrfToken(uploadPage.text);
 
       const uploadResponse = await guestAgent
@@ -629,7 +629,7 @@ describe('Tests applicatifs HTTP', () => {
         });
 
       expect(uploadResponse.status).to.equal(201);
-      expect(uploadResponse.body.message).to.include('Publication apres moderation');
+      expect(uploadResponse.body.message).to.include('Publication après modération');
       expect(uploadResponse.body.files).to.have.lengthOf(1);
       expect(uploadResponse.body.files[0].moderationStatus).to.equal('pending');
 
@@ -649,7 +649,7 @@ describe('Tests applicatifs HTTP', () => {
 
       const moderationPage = await ownerAgent.get(`/profile/event/${createdEvent.id}/moderation`);
       expect(moderationPage.status).to.equal(200);
-      expect(moderationPage.text).to.include('Moderation des photos');
+      expect(moderationPage.text).to.include('Modération des photos');
       expect(moderationPage.text).to.include('photo-moderee.jpg');
       const moderationCsrf = extractCsrfToken(moderationPage.text);
 
@@ -719,7 +719,7 @@ describe('Tests applicatifs HTTP', () => {
       const profileWithEvent = await ownerAgent.get('/profile');
       expect(profileWithEvent.status).to.equal(200);
       expect(profileWithEvent.text).to.include(`/profile/events/${createdEvent.id}/slideshow`);
-      expect(profileWithEvent.text).to.include('Slideshow');
+      expect(profileWithEvent.text).to.include('Diaporama');
 
       const guestAgent = request.agent(app);
       await registerGuestForEvent(guestAgent, createdEvent.token, 'Visiteur Toggle');
@@ -823,7 +823,7 @@ describe('Tests applicatifs HTTP', () => {
 
       const editPage = await agent.get(`/profile/events/${createdEvent.id}/edit`);
       expect(editPage.status).to.equal(200);
-      expect(editPage.text).to.include('Modifier un evenement');
+      expect(editPage.text).to.include("Modifier l'événement");
       const editCsrf = extractCsrfToken(editPage.text);
 
       await agent
@@ -1091,7 +1091,7 @@ describe('Tests applicatifs HTTP', () => {
       const res = await request(app).get('/');
 
       expect(res.status).to.equal(200);
-      expect(res.text).to.include('Toutes les photos de votre evenement, reunies au meme endroit');
+      expect(res.text).to.include('Toutes les photos de votre événement');
     });
 
     it('les autres pages retournent 503', async () => {

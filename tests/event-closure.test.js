@@ -301,7 +301,7 @@ describe('Cloture definitive d\'un evenement', () => {
       });
 
     expect(uploadResponse.status).to.equal(403);
-    expect(uploadResponse.body.message).to.include('cloture');
+    expect(uploadResponse.body.message).to.include('clôturé');
 
     // La page d'upload renvoie desormais vers la galerie
     const uploadPageAfter = await guestAgent.get(`/event/${createdEvent.token}/upload`);

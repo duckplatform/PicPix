@@ -2,11 +2,11 @@
 <%- include('partials/header') %>
 <section class="card form-card">
   <div>
-    <p class="eyebrow">Depot de photos</p>
-    <p>Bonjour <strong><%= guestName %></strong>. Vous pouvez envoyer vos photos de l'evenement ici.</p>
-    <p>Cette interface est optimisee smartphone : galerie, prise de vue et envois multiples.</p>
+    <p class="eyebrow">Envoi de photos</p>
+    <h1>Bonjour <%= guestName %></h1>
+    <p>Prenez des photos sur le vif ou choisissez-les dans votre galerie : elles rejoignent l'album de l'événement.</p>
     <% if (uploadOptions.moderationEnabled) { %>
-      <p>Les photos envoyees seront publiees apres validation par l'organisateur.</p>
+      <p>Les photos envoyées seront publiées après validation par l'organisateur.</p>
     <% } %>
   </div>
 
@@ -16,16 +16,15 @@
   <input type="hidden" id="upload-allow-multiple" value="<%= uploadOptions.allowMultiple ? '1' : '0' %>" />
 
   <div class="upload-mobile-actions">
-    <a class="btn btn-secondary" href="/event/<%= eventItem.token %>">Retour a l'evenement</a>
-    <a class="btn btn-secondary" href="/event/<%= eventItem.token %>/gallery">Voir la galerie</a>
-    <button type="button" id="camera-open-btn" class="btn btn-camera">
-      📷 Appareil photo
+    <button type="button" id="camera-open-btn" class="btn btn-camera btn-lg">
+      <%- include('partials/icon', { name: 'camera', size: 20 }) %>Ouvrir l'appareil photo
     </button>
+    <a class="btn btn-secondary btn-lg" href="/event/<%= eventItem.token %>/gallery"><%- include('partials/icon', { name: 'images', size: 18 }) %>Voir la galerie</a>
   </div>
 
   <p class="upload-hint">
-    Utilisez le bouton <strong>Appareil photo</strong> pour une session multi-prises avec votre
-    camera, ou touchez la zone Dropzone ci-dessous pour ouvrir la galerie / camera native.
+    L'<strong>appareil photo</strong> permet d'enchaîner plusieurs prises avant l'envoi.
+    Vous pouvez aussi toucher la zone ci-dessous pour choisir des photos existantes.
   </p>
 
   <div id="upload-feedback" class="flash-stack"></div>
@@ -39,7 +38,7 @@
 
     <div class="camera-toolbar">
       <button type="button" id="camera-switch-btn" class="btn btn-small camera-btn-icon"
-              title="Retourner la caméra" aria-label="Retourner la caméra">↩ Retourner</button>
+              title="Retourner la caméra" aria-label="Retourner la caméra"><%- include('partials/icon', { name: 'flip', size: 16 }) %>Retourner</button>
       <span id="camera-counter" class="camera-counter">Aucune photo</span>
       <button type="button" id="camera-cancel-btn" class="btn btn-danger btn-small"
               aria-label="Fermer la caméra">Annuler</button>
@@ -53,7 +52,7 @@
 
     <div class="camera-actions">
       <button type="button" id="camera-capture-btn" class="btn camera-shutter"
-              aria-label="Prendre une photo">●</button>
+              aria-label="Prendre une photo"></button>
     </div>
 
     <div id="camera-thumbnails" class="camera-thumbnails" aria-live="polite"></div>

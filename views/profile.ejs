@@ -1,52 +1,155 @@
 <%- include('partials/head') %>
 <%- include('partials/header') %>
-<section class="grid-columns">
+<% const badgeLabels = { admin: 'Admin', user: 'Utilisateur', active: 'Actif', inactive: 'Inactif', disabled: 'Désactivé', closed: 'Clôturé' }; %>
+<section class="section-head profile-head">
+  <div class="profile-identity">
+    <span class="avatar" aria-hidden="true"><%= (user.fullName || user.email || '?').trim().charAt(0).toUpperCase() %></span>
+    <div>
+      <h1>Mes événements</h1>
+      <p><%= user.fullName %> · <%= user.email %></p>
+    </div>
+  </div>
+  <a class="btn btn-accent btn-lg" href="/profile/events/new"><%- include('partials/icon', { name: 'plus', size: 18 }) %>Nouvel événement</a>
+</section>
+
+<section class="profile-events" aria-label="Liste de mes événements">
+  <% if (!userEvents.length) { %>
+    <div class="empty-state">
+      <strong>Aucun événement pour le moment.</strong>
+      <p>Créez votre premier événement pour obtenir un lien à partager avec vos invités.</p>
+      <a class="btn section-gap" href="/profile/events/new">Créer un événement</a>
+    </div>
+  <% } else { %>
+    <ul class="event-list">
+      <% userEvents.forEach((eventItem) => { %>
+        <% const isClosed = eventItem.status === 'closed'; %>
+        <li class="event-row">
+          <div>
+            <h3 class="event-row-title">
+              <%= eventItem.name %>
+              <span class="badge badge-<%= eventItem.status %>"><%= badgeLabels[eventItem.status] || eventItem.status %></span>
+            </h3>
+            <p class="event-row-meta">
+              <span><%- include('partials/icon', { name: 'calendar', size: 15 }) %><%= formatDateTime(eventItem.startsAt) %></span>
+              <% if (isClosed && eventItem.closedAt) { %>
+                <span><%- include('partials/icon', { name: 'lock', size: 15 }) %>Clôturé le <%= formatDateTime(eventItem.closedAt) %></span>
+              <% } %>
+              <% if (!isClosed && eventItem.pendingModerationCount) { %>
+                <span><%- include('partials/icon', { name: 'clock', size: 15 }) %><%= eventItem.pendingModerationCount %> photo(s) à modérer</span>
+              <% } %>
+            </p>
+          </div>
+
+          <div class="event-row-actions">
+            <a class="btn btn-small" href="/event/<%= eventItem.token %>" target="_blank" rel="noopener noreferrer"><%- include('partials/icon', { name: 'external', size: 16 }) %>Site invité</a>
+            <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/slideshow"><%- include('partials/icon', { name: 'play', size: 16 }) %>Diaporama</a>
+            <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/gallery"><%- include('partials/icon', { name: 'images', size: 16 }) %>Galerie</a>
+            <% if (!isClosed) { %>
+              <a class="btn btn-secondary btn-small" href="/profile/event/<%= eventItem.id %>/moderation"><%- include('partials/icon', { name: 'shield', size: 16 }) %>Modération</a>
+            <% } %>
+          </div>
+
+          <div class="event-row-footer">
+            <% if (isClosed) { %>
+              <div class="archive-cell"
+                   data-archive-cell
+                   data-event-id="<%= eventItem.id %>"
+                   data-archive-status="<%= eventItem.archiveStatus %>">
+                <% if (eventItem.archiveStatus === 'ready') { %>
+                  <a class="btn btn-small" href="/profile/events/<%= eventItem.id %>/archive">Télécharger le ZIP</a>
+                  <small class="muted-note">
+                    <%= eventItem.archivePhotoCount || 0 %> photo(s)<% if (eventItem.archiveSizeBytes) { %> &middot; <%= (eventItem.archiveSizeBytes / (1024 * 1024)).toFixed(1) %> Mo<% } %>
+                  </small>
+                <% } else if (eventItem.archiveStatus === 'failed') { %>
+                  <span class="archive-failed">La génération de l'archive a échoué. Contactez un administrateur.</span>
+                <% } else { %>
+                  <span class="archive-pending">
+                    <span class="archive-spinner" aria-hidden="true"></span>
+                    Archive ZIP en préparation&hellip; le lien de téléchargement apparaîtra ici dès qu'elle sera prête.
+                  </span>
+                <% } %>
+              </div>
+            <% } else { %>
+              <div class="table-actions">
+                <a class="btn btn-ghost btn-small" href="/profile/events/<%= eventItem.id %>/edit"><%- include('partials/icon', { name: 'edit', size: 16 }) %>Modifier</a>
+                <% if (eventItem.status !== 'active') { %>
+                  <form method="post" action="/profile/events/<%= eventItem.id %>/activate" class="inline-form">
+                    <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                    <button class="btn btn-ghost btn-small" type="submit"><%- include('partials/icon', { name: 'power', size: 16 }) %>Activer</button>
+                  </form>
+                <% } %>
+              </div>
+            <% } %>
+            <div class="event-row-danger">
+              <% if (!isClosed) { %>
+                <button class="btn btn-danger btn-small"
+                        type="button"
+                        data-close-event-trigger
+                        data-event-id="<%= eventItem.id %>"
+                        data-event-name="<%= eventItem.name %>"
+                        data-pending-count="<%= eventItem.pendingModerationCount || 0 %>"><%- include('partials/icon', { name: 'lock', size: 16 }) %>Clôturer</button>
+              <% } %>
+              <form method="post" action="/profile/events/<%= eventItem.id %>?_method=DELETE" class="inline-form" onsubmit="return confirm('Supprimer cet événement ? Cette action supprimera aussi toutes les données stockées de cet événement.');">
+                <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
+                <button class="btn btn-danger btn-small" type="submit"><%- include('partials/icon', { name: 'trash', size: 16 }) %>Supprimer</button>
+              </form>
+            </div>
+          </div>
+        </li>
+      <% }) %>
+    </ul>
+  <% } %>
+</section>
+
+<section class="profile-grid section-gap">
   <article class="card">
     <p class="eyebrow">Compte</p>
-    <h1>Mon profil</h1>
+    <h2>Mon compte</h2>
     <dl class="definition-list">
       <div>
         <dt>Email</dt>
         <dd><%= user.email %></dd>
       </div>
       <div>
-        <dt>Role</dt>
-        <dd><%= user.role %></dd>
+        <dt>Rôle</dt>
+        <dd><span class="badge badge-<%= user.role %>"><%= badgeLabels[user.role] || user.role %></span></dd>
       </div>
       <div>
         <dt>Statut</dt>
-        <dd><%= user.status %></dd>
+        <dd><span class="badge badge-<%= user.status %>"><%= badgeLabels[user.status] || user.status %></span></dd>
       </div>
     </dl>
   </article>
 
   <article class="card">
-    <p class="eyebrow">Edition</p>
-    <h2>Mettre a jour mon profil</h2>
+    <p class="eyebrow">Édition</p>
+    <h2>Mettre à jour mon profil</h2>
     <form method="post" action="/profile?_method=PUT" class="form-grid">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
       <label>
         <span>Nom complet</span>
-        <input type="text" name="fullName" value="<%= formData.fullName || user.fullName || '' %>" required maxlength="120" />
+        <input type="text" name="fullName" value="<%= formData.fullName || user.fullName || '' %>" required maxlength="120" autocomplete="name" />
         <% if (fieldErrors.fullName) { %><small class="field-error"><%= fieldErrors.fullName %></small><% } %>
       </label>
 
-      <label>
-        <span>Nouveau mot de passe</span>
-        <input type="password" name="password" minlength="8" maxlength="72" />
-        <% if (fieldErrors.password) { %><small class="field-error"><%= fieldErrors.password %></small><% } %>
-      </label>
+      <div class="form-row">
+        <label>
+          <span>Nouveau mot de passe</span>
+          <input type="password" name="password" minlength="8" maxlength="72" autocomplete="new-password" />
+          <% if (fieldErrors.password) { %><small class="field-error"><%= fieldErrors.password %></small><% } %>
+        </label>
 
-      <label>
-        <span>Confirmation du nouveau mot de passe</span>
-        <input type="password" name="confirmPassword" minlength="8" maxlength="72" />
-        <% if (fieldErrors.confirmPassword) { %><small class="field-error"><%= fieldErrors.confirmPassword %></small><% } %>
-      </label>
+        <label>
+          <span>Confirmation</span>
+          <input type="password" name="confirmPassword" minlength="8" maxlength="72" autocomplete="new-password" />
+          <% if (fieldErrors.confirmPassword) { %><small class="field-error"><%= fieldErrors.confirmPassword %></small><% } %>
+        </label>
+      </div>
 
       <label>
         <span>Mot de passe actuel</span>
-        <input type="password" name="currentPassword" maxlength="72" />
+        <input type="password" name="currentPassword" maxlength="72" autocomplete="current-password" />
         <% if (fieldErrors.currentPassword) { %><small class="field-error"><%= fieldErrors.currentPassword %></small><% } %>
       </label>
 
@@ -55,127 +158,34 @@
   </article>
 </section>
 
-<section class="section-gap">
-  <article class="card profile-events-card">
-    <p class="eyebrow">Mes evenements</p>
-    <h2>Liste de mes evenements</h2>
-    <div class="table-actions section-gap">
-      <a class="btn" href="/profile/events/new">Creer un evenement</a>
-    </div>
-    <% if (!userEvents.length) { %>
-      <p>Aucun evenement cree pour le moment.</p>
-    <% } else { %>
-      <div class="table-wrap">
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Nom</th>
-              <th>Date/heure</th>
-              <th>Statut</th>
-              <th>Archive photos</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <% userEvents.forEach((eventItem) => { %>
-              <% const isClosed = eventItem.status === 'closed'; %>
-              <tr>
-                <td>
-                  <%= eventItem.name %>
-                  <% if (isClosed && eventItem.closedAt) { %>
-                    <small class="muted-note">Cloture le <%= formatDateTime(eventItem.closedAt) %></small>
-                  <% } %>
-                </td>
-                <td><%= formatDateTime(eventItem.startsAt) %></td>
-                <td><span class="badge badge-<%= eventItem.status %>"><%= isClosed ? 'cloture' : eventItem.status %></span></td>
-                <td>
-                  <% if (!isClosed) { %>
-                    <span class="muted-note">&mdash;</span>
-                  <% } else { %>
-                    <div class="archive-cell"
-                         data-archive-cell
-                         data-event-id="<%= eventItem.id %>"
-                         data-archive-status="<%= eventItem.archiveStatus %>">
-                      <% if (eventItem.archiveStatus === 'ready') { %>
-                        <a class="btn btn-small" href="/profile/events/<%= eventItem.id %>/archive">Telecharger le ZIP</a>
-                        <small class="muted-note">
-                          <%= eventItem.archivePhotoCount || 0 %> photo(s)<% if (eventItem.archiveSizeBytes) { %> &middot; <%= (eventItem.archiveSizeBytes / (1024 * 1024)).toFixed(1) %> Mo<% } %>
-                        </small>
-                      <% } else if (eventItem.archiveStatus === 'failed') { %>
-                        <span class="archive-failed">La generation de l'archive a echoue. Contactez un administrateur.</span>
-                      <% } else { %>
-                        <span class="archive-pending">
-                          <span class="archive-spinner" aria-hidden="true"></span>
-                          Archive ZIP en cours de preparation&hellip; le lien de telechargement apparaitra ici des qu'elle sera prete.
-                        </span>
-                      <% } %>
-                    </div>
-                  <% } %>
-                </td>
-                <td>
-                  <div class="table-actions">
-                    <a class="btn btn-small" href="/event/<%= eventItem.token %>" target="_blank" rel="noopener noreferrer">Site</a>
-                    <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/slideshow">Slideshow</a>
-                    <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/gallery">Galerie</a>
-                    <% if (!isClosed) { %>
-                      <a class="btn btn-secondary btn-small" href="/profile/event/<%= eventItem.id %>/moderation">Moderation</a>
-                      <% if (eventItem.status !== 'active') { %>
-                        <form method="post" action="/profile/events/<%= eventItem.id %>/activate" class="inline-form">
-                          <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                          <button class="btn btn-secondary btn-small" type="submit">Activer</button>
-                        </form>
-                      <% } %>
-                      <a class="btn btn-secondary btn-small" href="/profile/events/<%= eventItem.id %>/edit">Modifier</a>
-                      <button class="btn btn-danger btn-small"
-                              type="button"
-                              data-close-event-trigger
-                              data-event-id="<%= eventItem.id %>"
-                              data-event-name="<%= eventItem.name %>"
-                              data-pending-count="<%= eventItem.pendingModerationCount || 0 %>">Cloturer</button>
-                    <% } %>
-                    <form method="post" action="/profile/events/<%= eventItem.id %>?_method=DELETE" class="inline-form" onsubmit="return confirm('Supprimer cet evenement ? Cette action supprimera aussi toutes les donnees stockees de cet evenement.');">
-                      <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-                      <button class="btn btn-danger btn-small" type="submit">Supprimer</button>
-                    </form>
-                  </div>
-                </td>
-              </tr>
-            <% }) %>
-          </tbody>
-        </table>
-      </div>
-    <% } %>
-  </article>
-</section>
-
 <!-- Popup de confirmation obligatoire avant cloture definitive -->
 <div class="modal-backdrop" id="close-event-modal" hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="close-event-modal-title">
   <div class="modal-card">
-    <h2 id="close-event-modal-title">Cloturer definitivement l'evenement</h2>
-    <p>Vous etes sur le point de cloturer <strong id="close-event-modal-name"></strong>.</p>
+    <h2 id="close-event-modal-title">Clôturer définitivement l'événement</h2>
+    <p>Vous êtes sur le point de clôturer <strong id="close-event-modal-name"></strong>.</p>
 
     <!-- Etat bloque : il reste des photos non moderees, qui seraient perdues -->
     <div id="close-event-blocked" hidden>
       <p class="modal-danger-note">
-        Cloture impossible : <strong id="close-event-pending-count"></strong> attendent encore votre moderation.
+        Clôture impossible : <strong id="close-event-pending-count"></strong> attendent encore votre modération.
       </p>
       <p>
-        Une photo non moderee n'apparait ni dans la galerie ni dans l'archive ZIP,
-        et la moderation devient inaccessible une fois l'evenement cloture :
-        elle serait <strong>definitivement perdue</strong>.
+        Une photo non modérée n'apparaît ni dans la galerie ni dans l'archive ZIP,
+        et la modération devient inaccessible une fois l'événement clôturé :
+        elle serait <strong>définitivement perdue</strong>.
       </p>
       <div class="table-actions">
         <button class="btn btn-secondary" type="button" data-close-event-dismiss>Fermer</button>
-        <a class="btn" id="close-event-moderation-link" href="#">Aller a la moderation</a>
+        <a class="btn" id="close-event-moderation-link" href="#">Aller à la modération</a>
       </div>
     </div>
 
     <ul class="modal-warning-list" id="close-event-consequences">
-      <li>Les visiteurs ne pourront <strong>plus envoyer de photos</strong>.</li>
-      <li>L'evenement ne pourra <strong>plus etre modifie, reactive ni reouvert</strong>.</li>
-      <li>Une archive ZIP de toutes les photos sera preparee en arriere-plan.</li>
+      <li>Les invités ne pourront <strong>plus envoyer de photos</strong>.</li>
+      <li>L'événement ne pourra <strong>plus être modifié, réactivé ni rouvert</strong>.</li>
+      <li>Une archive ZIP de toutes les photos sera préparée en arrière-plan.</li>
     </ul>
-    <p class="modal-danger-note" id="close-event-irreversible-note">Cette action est <strong>irreversible</strong>.</p>
+    <p class="modal-danger-note" id="close-event-irreversible-note">Cette action est <strong>irréversible</strong>.</p>
 
     <form method="post" id="close-event-form" class="form-grid">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -185,7 +195,7 @@
       </label>
       <div class="table-actions">
         <button class="btn btn-secondary" type="button" id="close-event-cancel">Annuler</button>
-        <button class="btn btn-danger" type="submit" id="close-event-submit" disabled>Cloturer definitivement</button>
+        <button class="btn btn-danger" type="submit" id="close-event-submit" disabled>Clôturer définitivement</button>
       </div>
     </form>
   </div>
