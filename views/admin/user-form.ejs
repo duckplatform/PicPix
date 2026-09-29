@@ -73,7 +73,7 @@
             <% userEvents.forEach((eventItem) => { %>
               <tr>
                 <td><%= eventItem.name %></td>
-                <td><%= new Date(eventItem.startsAt).toLocaleString('fr-FR') %></td>
+                <td><%= formatDateTime(eventItem.startsAt) %></td>
                 <td><span class="badge badge-<%= eventItem.status %>"><%= eventItem.status %></span></td>
                 <td>
                   <div class="table-actions">

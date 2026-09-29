@@ -78,7 +78,7 @@ describe('Cloture definitive d\'un evenement', () => {
     eventFileStore.resetTestState();
     eventStore.resetTestState();
 
-    await fs.rm(EVENT_STORAGE_ROOT, { recursive: true, force: true });
+    await fs.rm(EVENT_STORAGE_ROOT, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 });
     await fs.mkdir(EVENT_STORAGE_ROOT, { recursive: true });
 
     owner = await userStore.findByEmail('admin@example.com');
@@ -211,9 +211,16 @@ describe('Cloture definitive d\'un evenement', () => {
     const secondClose = await closeEventViaHttp(agent, createdEvent);
     expect(secondClose.status).to.equal(302);
 
-    // Meme en forcant le store, le statut reste 'closed'
-    const forced = await eventStore.updateEvent(createdEvent.id, { status: 'active' });
-    expect(forced.status).to.equal('closed');
+    // Meme en forcant le store, l'ecriture est refusee et le statut reste 'closed'
+    let forcedError = null;
+    try {
+      await eventStore.updateEvent(createdEvent.id, { status: 'active' });
+    } catch (err) {
+      forcedError = err;
+    }
+    expect(forcedError).to.not.equal(null);
+    expect(forcedError.code).to.equal('EVENT_CLOSED');
+    expect((await eventStore.findById(createdEvent.id)).status).to.equal('closed');
   });
 
   it('bloque la cloture tant que des photos attendent la moderation', async () => {

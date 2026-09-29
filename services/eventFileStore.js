@@ -11,6 +11,12 @@ function useTestStore() {
   return process.env.NODE_ENV === 'test';
 }
 
+function eventClosedError() {
+  const closedError = new Error('EVENT_CLOSED');
+  closedError.code = 'EVENT_CLOSED';
+  return closedError;
+}
+
 function normalizeRow(row) {
   if (!row) {
     return null;
@@ -45,6 +51,12 @@ async function createFileRecord(payload) {
   };
 
   if (useTestStore()) {
+    // Chargement differe pour eviter un cycle de require avec eventStore.
+    const eventItem = await require('./eventStore').findById(record.eventId);
+    if (eventItem && eventItem.status === 'closed') {
+      throw eventClosedError();
+    }
+
     const item = {
       id: nextTestFileId,
       ...record,
@@ -56,12 +68,17 @@ async function createFileRecord(payload) {
     return normalizeRow(item);
   }
 
+  // INSERT ... SELECT conditionne a l'etat de l'evenement : un upload qui se
+  // termine apres une cloture concurrente est refuse de facon atomique (la
+  // lecture verrouille la ligne events, serialisee avec l'UPDATE de cloture).
   const [result] = await pool.query(`
     INSERT INTO event_files (
       event_id, uploaded_by_user_id, uploader_name, original_name, stored_name,
       size_bytes, storage_path, checksum_sha256, moderation_status
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?
+    FROM events
+    WHERE id = ? AND status <> 'closed'
   `, [
     record.eventId,
     record.uploadedByUserId,
@@ -72,7 +89,12 @@ async function createFileRecord(payload) {
     record.storagePath,
     record.checksumSha256,
     record.moderationStatus,
+    record.eventId,
   ]);
+
+  if (result.affectedRows === 0) {
+    throw eventClosedError();
+  }
 
   const [rows] = await pool.query(`
     SELECT id, event_id AS eventId, uploaded_by_user_id AS uploadedByUserId,
@@ -163,6 +185,36 @@ async function countByEventAndStatus(eventId, moderationStatus) {
   return Number(rows[0].total);
 }
 
+/**
+ * Nombre de fichiers par evenement dans un statut donne, en une seule requete.
+ * @returns {Promise<Map<number, number>>} eventId -> total (absent = 0)
+ */
+async function countByEventsAndStatus(eventIds, moderationStatus) {
+  const ids = [...new Set(eventIds.map(Number))];
+  const counts = new Map();
+
+  if (ids.length === 0 || !MODERATION_STATUSES.has(moderationStatus)) {
+    return counts;
+  }
+
+  if (useTestStore()) {
+    testFiles
+      .filter((item) => ids.includes(item.eventId) && item.moderationStatus === moderationStatus)
+      .forEach((item) => counts.set(item.eventId, (counts.get(item.eventId) || 0) + 1));
+    return counts;
+  }
+
+  const [rows] = await pool.query(`
+    SELECT event_id AS eventId, COUNT(*) AS total
+    FROM event_files
+    WHERE event_id IN (?) AND moderation_status = ?
+    GROUP BY event_id
+  `, [ids, moderationStatus]);
+
+  rows.forEach((row) => counts.set(Number(row.eventId), Number(row.total)));
+  return counts;
+}
+
 async function findByEventAndStoredName(eventId, storedName) {
   if (useTestStore()) {
     const found = testFiles.find((item) => item.eventId === Number(eventId) && item.storedName === storedName);
@@ -244,6 +296,7 @@ function resetTestState() {
 
 module.exports = {
   countByEventAndStatus,
+  countByEventsAndStatus,
   createFileRecord,
   findByEventAndStoredName,
   listByEvent,

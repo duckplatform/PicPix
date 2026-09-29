@@ -26,6 +26,14 @@
     </p>
   <% } %>
 
+  <% if (!mailBaseUrlConfigured) { %>
+    <p class="field-error">
+      La variable APP_BASE_URL (URL publique absolue du site, ex.
+      https://picpix.example.com) n'est pas definie : les liens envoyes par
+      email seraient inutilisables, aucun email ne sera donc envoye.
+    </p>
+  <% } %>
+
   <form method="post" action="/admin/settings" class="form-grid">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 

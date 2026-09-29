@@ -13,11 +13,50 @@ const VARIANT_SPECS = {
   sm: { width: 640, quality: 78 },
 };
 
+/**
+ * Extensions d'image raster acceptees a l'upload, par type MIME.
+ * Les originaux sont servis avec un Content-Type deduit de l'extension : une
+ * extension libre (.html, .svg...) permettrait d'executer du script sur
+ * l'origine de l'application. SVG est volontairement exclu (scriptable).
+ */
+const IMAGE_EXTENSION_BY_MIME = {
+  'image/jpeg': '.jpg',
+  'image/pjpeg': '.jpg',
+  'image/png': '.png',
+  'image/gif': '.gif',
+  'image/webp': '.webp',
+  'image/avif': '.avif',
+  'image/heic': '.heic',
+  'image/heif': '.heif',
+  'image/bmp': '.bmp',
+  'image/tiff': '.tiff',
+};
+
+const ALLOWED_IMAGE_EXTENSIONS = new Set([
+  '.jpg', '.jpeg', '.jfif', '.png', '.gif', '.webp', '.avif', '.heic', '.heif', '.bmp', '.tif', '.tiff',
+]);
+
+/** Nom de fichier stocke : uuid + extension image autorisee. */
+const STORED_NAME_PATTERN = /^[0-9a-f-]{36}\.(jpe?g|jfif|png|gif|webp|avif|heic|heif|bmp|tiff?)$/i;
+
 const queue = [];
 let isProcessing = false;
 
 function sanitizeStoredName(storedName) {
-  return /^[0-9a-f-]{36}\.[a-z0-9]{1,10}$/i.test(storedName || '');
+  return STORED_NAME_PATTERN.test(storedName || '');
+}
+
+/**
+ * Extension a utiliser pour stocker un upload, ou null si le fichier n'est
+ * pas une image raster acceptee.
+ */
+function resolveImageExtension(originalName, mimeType) {
+  const nameExtension = path.extname(originalName || '').toLowerCase();
+  if (ALLOWED_IMAGE_EXTENSIONS.has(nameExtension)) {
+    return nameExtension;
+  }
+
+  return IMAGE_EXTENSION_BY_MIME[String(mimeType || '').toLowerCase()] || null;
 }
 
 function getVariantFileName(storedName, variantKey) {
@@ -110,11 +149,13 @@ async function variantExists(eventUuid, storedName, variantKey) {
 }
 
 module.exports = {
+  STORED_NAME_PATTERN,
   VARIANT_SPECS,
   enqueueVariantGeneration,
   getOriginalPath,
   getVariantFileName,
   getVariantPath,
+  resolveImageExtension,
   sanitizeStoredName,
   variantExists,
 };

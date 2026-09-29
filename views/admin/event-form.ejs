@@ -155,7 +155,7 @@
                 </td>
                 <td><%= fileItem.originalName %></td>
                 <td><%= Math.round(fileItem.sizeBytes / 1024) %> Ko</td>
-                <td><%= new Date(fileItem.createdAt).toLocaleString('fr-FR') %></td>
+                <td><%= formatDateTime(fileItem.createdAt) %></td>
                 <td>
                   <a class="btn btn-secondary btn-small" href="/admin/events/<%= editingEvent.id %>/photos/<%= fileItem.storedName %>/original" target="_blank" rel="noopener noreferrer">Ouvrir</a>
                 </td>

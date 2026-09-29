@@ -13,6 +13,7 @@
  */
 
 const archiver = require('archiver');
+const crypto = require('crypto');
 const fs = require('fs/promises');
 const fsSync = require('fs');
 const path = require('path');
@@ -76,25 +77,15 @@ function buildEntryName(fileItem, index, usedNames) {
 }
 
 /**
- * Ecrit le ZIP des originaux approuves dans <storage>/<uuid>/archive/.
- * @returns {Promise<{sizeBytes: number, photoCount: number}>}
+ * Ecrit dans `targetPath` le ZIP des fichiers donnes.
+ * @returns {Promise<number>} nombre de photos effectivement ajoutees
  */
-async function writeArchive(eventItem, files) {
-  const archiveDir = eventStore.getEventArchiveStoragePath(eventItem.uuid);
-  await fs.mkdir(archiveDir, { recursive: true });
-
-  const finalPath = getArchivePath(eventItem.uuid);
-  // On ecrit d'abord dans un fichier temporaire : tant que le rename n'a pas eu
-  // lieu, aucune archive partielle ne peut etre servie en telechargement.
-  const tempPath = `${finalPath}.part`;
-
-  await fs.rm(tempPath, { force: true });
-
+function zipOriginals(eventItem, files, targetPath) {
   const usedNames = new Set();
   let photoCount = 0;
 
-  await new Promise((resolve, reject) => {
-    const output = fsSync.createWriteStream(tempPath);
+  return new Promise((resolve, reject) => {
+    const output = fsSync.createWriteStream(targetPath);
     const archive = archiver('zip', { zlib: { level: 1 } });
 
     let settled = false;
@@ -104,6 +95,7 @@ async function writeArchive(eventItem, files) {
       }
       settled = true;
       archive.abort();
+      output.destroy();
       reject(err);
     };
 
@@ -112,7 +104,7 @@ async function writeArchive(eventItem, files) {
         return;
       }
       settled = true;
-      resolve();
+      resolve(photoCount);
     });
 
     output.on('error', fail);
@@ -145,10 +137,34 @@ async function writeArchive(eventItem, files) {
 
     void archive.finalize();
   });
+}
 
-  await fs.rename(tempPath, finalPath);
+/**
+ * Ecrit le ZIP des originaux approuves dans <storage>/<uuid>/archive/.
+ * @returns {Promise<{sizeBytes: number, photoCount: number}>}
+ */
+async function writeArchive(eventItem, files) {
+  const archiveDir = eventStore.getEventArchiveStoragePath(eventItem.uuid);
+  await fs.mkdir(archiveDir, { recursive: true });
+
+  const finalPath = getArchivePath(eventItem.uuid);
+  // On ecrit d'abord dans un fichier temporaire : tant que le rename n'a pas eu
+  // lieu, aucune archive partielle ne peut etre servie en telechargement.
+  // Nom unique par ecrivain : plusieurs processus (Passenger) peuvent relancer
+  // la meme archive au demarrage sans corrompre le fichier d'un autre ; le
+  // rename final est atomique, seul un ZIP complet est donc jamais expose.
+  const tempPath = `${finalPath}.${process.pid}-${crypto.randomUUID()}.part`;
+
+  let photoCount;
+  try {
+    photoCount = await zipOriginals(eventItem, files, tempPath);
+    await fs.rename(tempPath, finalPath);
+  } catch (err) {
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+    throw err;
+  }
+
   const stats = await fs.stat(finalPath);
-
   return { sizeBytes: stats.size, photoCount };
 }
 
@@ -223,8 +239,24 @@ function enqueueArchiveGeneration(eventId) {
 }
 
 /**
+ * Relance manuellement (administration) une archive en echec.
+ * @returns {Promise<boolean>} false si l'evenement n'est pas clos ou pas en echec.
+ */
+async function retryArchiveGeneration(eventId) {
+  const eventItem = await eventStore.findById(eventId);
+  if (!eventItem || eventItem.status !== 'closed' || eventItem.archiveStatus !== 'failed') {
+    return false;
+  }
+
+  await eventStore.updateArchiveState(eventItem.id, { archiveStatus: 'pending' });
+  enqueueArchiveGeneration(eventItem.id);
+  logger.info(`[ARCHIVE] Nouvelle tentative de generation pour ${eventItem.uuid}`);
+  return true;
+}
+
+/**
  * Relance les archives restees `pending` (redemarrage serveur pendant un
- * traitement). Appele une fois au demarrage.
+ * traitement). Appele une fois, des que la base est disponible.
  */
 async function resumePendingArchives() {
   const pending = await eventStore.listPendingArchives();
@@ -252,4 +284,5 @@ module.exports = {
   enqueueArchiveGeneration,
   getArchivePath,
   resumePendingArchives,
+  retryArchiveGeneration,
 };

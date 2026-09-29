@@ -19,9 +19,12 @@ const { csrfSync }   = require('csrf-sync');
 const { Server }     = require('socket.io');
 const eventStore     = require('./services/eventStore');
 const eventArchiveService = require('./services/eventArchiveService');
+const userStore      = require('./services/userStore');
 
 const logger             = require('./config/logger');
 const { testConnection } = require('./config/database');
+const { SESSION_SECRET, createSessionStore } = require('./config/session');
+const { formatDateTime } = require('./config/timezone');
 const { globalLimiter }  = require('./middleware/rateLimiter');
 const { injectLocals }   = require('./middleware/auth');
 
@@ -41,6 +44,9 @@ let dbRetryTimer = null;
 
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
+
+// Dates affichees dans le fuseau metier (APP_TIMEZONE), pas celui du serveur.
+app.locals.formatDateTime = formatDateTime;
 
 // ─── Proxy inverse (Apache cPanel) ────────────────────────────────────────
 // Nécessaire pour que express-session (cookie secure) et express-rate-limit
@@ -84,21 +90,62 @@ app.use('/vendor/dropzone', express.static(path.join(__dirname, 'node_modules', 
   maxAge: ENV === 'production' ? '1d' : 0,
 }));
 
+// ─── Santé de l'application / disponibilité DB ────────────────────────────
+// Place AVANT les sessions : elles sont stockees dans MySQL, une base
+// indisponible ne doit donc pas empecher de repondre en mode degrade.
+
+app.get('/health', (req, res) => {
+  const databaseReady = app.locals.databaseReady !== false;
+
+  res.status(databaseReady ? 200 : 503).json({
+    status:   databaseReady ? 'ok' : 'degraded',
+    database: databaseReady ? 'up' : 'down',
+  });
+});
+
+app.use((req, res, next) => {
+  if (app.locals.databaseReady !== false) {
+    return next();
+  }
+
+  // Locaux minimaux des vues, sans session (cf. injectLocals).
+  res.locals.user = null;
+  res.locals.messages = { success: [], error: [] };
+  res.locals.csrfToken = '';
+
+  // Permet d'afficher une page d'accueil simple même si MySQL n'est pas disponible.
+  if (req.method === 'GET' && req.path === '/') {
+    return res.render('home', {
+      title:     'Accueil',
+      pageClass: 'page-home',
+    });
+  }
+
+  return res.status(503).render('errors/500', {
+    title:      'Service temporairement indisponible',
+    pageClass:  'page-error',
+    statusCode: 503,
+    message:    'L\'application est demarree, mais la base de donnees n\'est pas encore disponible. Reessayez dans quelques instants.',
+  });
+});
+
 // ─── Sessions ─────────────────────────────────────────────────────────────
 
-const SESSION_SECRET = process.env.SESSION_SECRET || 'change-this-secret-in-production';
-app.use(session({
+const SESSION_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24h
+const sessionMiddleware = session({
   name:   'sid',
   secret: SESSION_SECRET,
+  store:  createSessionStore(SESSION_MAX_AGE_MS),
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
     secure:   ENV === 'production',
     sameSite: 'lax',
-    maxAge:   24 * 60 * 60 * 1000, // 24h
+    maxAge:   SESSION_MAX_AGE_MS,
   },
-}));
+});
+app.use(sessionMiddleware);
 
 // ─── Flash messages ────────────────────────────────────────────────────────
 
@@ -134,35 +181,6 @@ app.use(csrfSynchronisedProtection);
 
 app.use(injectLocals);
 
-// ─── Santé de l'application / disponibilité DB ────────────────────────────
-
-app.get('/health', (req, res) => {
-  const databaseReady = app.locals.databaseReady !== false;
-
-  res.status(databaseReady ? 200 : 503).json({
-    status:   databaseReady ? 'ok' : 'degraded',
-    database: databaseReady ? 'up' : 'down',
-  });
-});
-
-app.use((req, res, next) => {
-  if (app.locals.databaseReady !== false) {
-    return next();
-  }
-
-  // Permet d'afficher une page d'accueil simple même si MySQL n'est pas disponible.
-  if (req.method === 'GET' && req.path === '/') {
-    return next();
-  }
-
-  return res.status(503).render('errors/500', {
-    title:      'Service temporairement indisponible',
-    pageClass:  'page-error',
-    statusCode: 503,
-    message:    'L\'application est demarree, mais la base de donnees n\'est pas encore disponible. Reessayez dans quelques instants.',
-  });
-});
-
 // ─── Routes ───────────────────────────────────────────────────────────────
 
 app.use('/', require('./routes/index'));
@@ -187,6 +205,13 @@ app.use((err, req, res, next) => {
     logger.warn(`[CSRF] Token invalide depuis ${req.ip} - ${req.method} ${req.originalUrl}`);
     req.flash('error', 'Requête invalide (token de sécurité expiré). Veuillez réessayer.');
     return res.redirect(req.get('Referrer') || '/');
+  }
+
+  // Ecriture refusee par eventStore.updateEvent : l'evenement a ete cloture
+  // entre la lecture faite par la route et l'UPDATE (cloture concurrente).
+  if (err.code === 'EVENT_CLOSED') {
+    req.flash('error', 'Cet evenement est cloture definitivement : il ne peut plus etre modifie.');
+    return res.redirect(req.originalUrl.startsWith('/admin') ? '/admin' : '/profile');
   }
 
   logger.error(`[ERROR] ${err.status || 500} - ${err.message}`, { stack: err.stack });
@@ -216,6 +241,29 @@ function scheduleDatabaseRetry() {
   }
 }
 
+let startupTasksDone = false;
+
+/**
+ * Taches de demarrage dependantes de MySQL : lancees une seule fois, des que
+ * la base repond (au boot elle peut ne pas etre encore disponible).
+ */
+function runDatabaseStartupTasks() {
+  if (startupTasksDone) {
+    return;
+  }
+
+  startupTasksDone = true;
+
+  // Crée les dossiers de stockage manquants pour les événements pré-existants
+  void eventStore.ensureAllStorageDirectories().catch((err) => {
+    logger.warn('[SERVER] ensureAllStorageDirectories :', err.message);
+  });
+  // Relance les archives ZIP interrompues par un redemarrage du serveur.
+  void eventArchiveService.resumePendingArchives().catch((err) => {
+    logger.error(`[SERVER] resumePendingArchives : ${err.message}`);
+  });
+}
+
 async function refreshDatabaseState() {
   try {
     await testConnection();
@@ -226,12 +274,32 @@ async function refreshDatabaseState() {
 
     app.locals.databaseReady = true;
     app.locals.databaseError = null;
+    runDatabaseStartupTasks();
   } catch (err) {
     app.locals.databaseReady = false;
     app.locals.databaseError = err;
     logger.error(`[DB] Base de donnees indisponible : ${err.message}`);
     scheduleDatabaseRetry();
   }
+}
+
+async function canAccessEventRealtime(sessionData, eventId) {
+  const userId = sessionData && sessionData.userId;
+  if (!userId) {
+    return false;
+  }
+
+  const user = await userStore.findPublicById(userId);
+  if (!user || user.status !== 'active') {
+    return false;
+  }
+
+  if (user.role === 'admin') {
+    return true;
+  }
+
+  const eventItem = await eventStore.findById(eventId);
+  return Boolean(eventItem) && eventItem.ownerUserId === Number(user.id);
 }
 
 function listenAsync() {
@@ -248,46 +316,29 @@ function listenAsync() {
 
     app.locals.io = io;
 
+    // Partage la session Express avec Socket.IO : les salles temps reel
+    // (slideshow, moderation) sont reservees au proprietaire de l'evenement
+    // ou a un administrateur.
+    io.engine.use(sessionMiddleware);
+
     io.on('connection', (socket) => {
-      socket.on('announce:join', (payload = {}) => {
+      const joinOwnedEventRoom = (roomSuffix) => async (payload = {}) => {
         const eventId = Number.parseInt(payload.eventId, 10);
         if (!Number.isInteger(eventId) || eventId <= 0) {
           return;
         }
 
-        socket.join(`event:${eventId}:announce`);
-      });
-
-      socket.on('ranking:join-event', (payload = {}) => {
-        const eventId = Number.parseInt(payload.eventId, 10);
-        if (!Number.isInteger(eventId) || eventId <= 0) {
-          return;
+        try {
+          if (await canAccessEventRealtime(socket.request.session, eventId)) {
+            socket.join(`event:${eventId}:${roomSuffix}`);
+          }
+        } catch (err) {
+          logger.warn(`[SOCKET] Verification d'acces impossible (${roomSuffix}) : ${err.message}`);
         }
+      };
 
-        socket.join(`event:${eventId}:ranking`);
-      });
-
-      socket.on('ranking:join-all', () => {
-        socket.join('ranking:all');
-      });
-
-      socket.on('slideshow:join', (payload = {}) => {
-        const eventId = Number.parseInt(payload.eventId, 10);
-        if (!Number.isInteger(eventId) || eventId <= 0) {
-          return;
-        }
-
-        socket.join(`event:${eventId}:slideshow`);
-      });
-
-      socket.on('moderation:join', (payload = {}) => {
-        const eventId = Number.parseInt(payload.eventId, 10);
-        if (!Number.isInteger(eventId) || eventId <= 0) {
-          return;
-        }
-
-        socket.join(`event:${eventId}:moderation`);
-      });
+      socket.on('slideshow:join', joinOwnedEventRoom('slideshow'));
+      socket.on('moderation:join', joinOwnedEventRoom('moderation'));
     });
 
     server.listen(PORT, () => {
@@ -302,15 +353,9 @@ function listenAsync() {
 async function startServer() {
   try {
     await listenAsync();
+    // Les taches dependantes de MySQL sont lancees par refreshDatabaseState
+    // des que la base repond (cf. runDatabaseStartupTasks).
     void refreshDatabaseState();
-    // Crée les dossiers de stockage manquants pour les événements pré-existants
-    void eventStore.ensureAllStorageDirectories().catch((err) => {
-      logger.warn('[SERVER] ensureAllStorageDirectories :', err.message);
-    });
-    // Relance les archives ZIP interrompues par un redemarrage du serveur.
-    void eventArchiveService.resumePendingArchives().catch((err) => {
-      logger.warn('[SERVER] resumePendingArchives :', err.message);
-    });
   } catch (err) {
     logger.error(`[SERVER] Impossible de demarrer : ${err.message}`);
     process.exit(1);

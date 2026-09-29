@@ -83,7 +83,7 @@ describe('Demande d\'archive par email sur la page evenement', () => {
     eventArchiveRequestStore.resetTestState();
     settingsStore.resetTestState();
 
-    await fs.rm(EVENT_STORAGE_ROOT, { recursive: true, force: true });
+    await fs.rm(EVENT_STORAGE_ROOT, { recursive: true, force: true, maxRetries: 20, retryDelay: 50 });
     await fs.mkdir(EVENT_STORAGE_ROOT, { recursive: true });
 
     owner = await userStore.findByEmail('admin@example.com');
@@ -92,6 +92,7 @@ describe('Demande d\'archive par email sur la page evenement', () => {
   afterEach(() => {
     sinon.restore();
     delete process.env.SMTP_HOST;
+    delete process.env.APP_BASE_URL;
   });
 
   async function createActiveEvent(name = 'Soiree avec archive par email') {
@@ -171,6 +172,7 @@ describe('Demande d\'archive par email sur la page evenement', () => {
 
   it('notifie par email les inscrits une fois l\'archive prete, si l\'envoi est active et SMTP configure', async () => {
     process.env.SMTP_HOST = 'smtp.test.local';
+    process.env.APP_BASE_URL = 'https://picpix.test';
     const sendMailStub = sinon.stub(mailService, 'sendMail').resolves();
 
     const createdEvent = await createActiveEvent('Soiree avec notification');
