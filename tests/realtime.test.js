@@ -192,6 +192,37 @@ describe('Temps reel en polling (upload -> diaporama)', () => {
     expect(newPhoto[1]).to.include({ eventId: eventItem.id, storedName: uploadedFile.storedName });
   });
 
+  it('liste les photos approuvees pour le rattrapage du diaporama apres reconnexion', async () => {
+    const eventItem = await createActiveEvent();
+    const approvedFile = await uploadAsGuest(eventItem, 'pendant-coupure.jpg');
+
+    await eventStore.updateEvent(eventItem.id, { moderationEnabled: true });
+    const pendingFile = await uploadAsGuest(eventItem, 'a-moderer.jpg');
+
+    const ownerAgent = request.agent(app);
+    const loginPage = await ownerAgent.get('/login');
+    await ownerAgent
+      .post('/login')
+      .type('form')
+      .send({ _csrf: extractCsrfToken(loginPage.text), email: 'admin@example.com', password: 'Admin1234' })
+      .expect(302);
+
+    const response = await ownerAgent.get(`/profile/events/${eventItem.id}/slideshow/photos`);
+    expect(response.status).to.equal(200);
+    expect(response.headers['cache-control']).to.equal('no-store');
+
+    const storedNames = response.body.photos.map((photo) => photo.storedName);
+    expect(storedNames).to.include(approvedFile.storedName);
+    expect(storedNames).to.not.include(pendingFile.storedName);
+    expect(response.body.photos[0]).to.have.all.keys('storedName', 'originalName', 'uploaderName', 'uploadedAt');
+
+    const anonymous = await request(app).get(`/profile/events/${eventItem.id}/slideshow/photos`);
+    expect(anonymous.status).to.equal(302);
+
+    const unknownEvent = await ownerAgent.get('/profile/events/9999/slideshow/photos');
+    expect(unknownEvent.status).to.equal(404);
+  });
+
   it('ne pousse rien a une connexion sans droit sur l\'evenement', async () => {
     await startRealtimeServer(['polling']);
     const eventItem = await createActiveEvent();
