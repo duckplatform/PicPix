@@ -42,6 +42,14 @@ aucun email n'est envoye (le lien serait relatif, donc inutilisable).
 Le QR code et l'affiche PDF des evenements utilisent aussi `APP_BASE_URL`
 (a defaut, l'hote de la requete).
 
+Temps reel (diaporama, moderation) : Socket.IO fonctionne en polling HTTP par
+defaut, car certains frontaux mutualises (o2switch PowerBoost) corrompent les
+trames WebSocket. Sur un hebergement qui les supporte, `SOCKET_TRANSPORTS=polling,websocket`
+autorise l'upgrade WebSocket. Le polling exige que toutes les requetes d'une
+connexion atteignent le meme processus Node : avec plusieurs processus
+Passenger, activer les sessions collantes (`PassengerStickySessions on`) ou
+limiter l'application a un seul processus.
+
 3. Initialiser la base:
 
 ```bash

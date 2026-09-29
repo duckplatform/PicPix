@@ -311,12 +311,15 @@
   });
 
   if (typeof window.io === 'function') {
-    const socket = window.io({
-      path: '/socket.io',
-      transports: ['websocket', 'polling'],
-    });
+    // Transports par defaut : polling HTTP, puis WebSocket seulement si le
+    // serveur l'annonce (cf. config/realtime.js).
+    const socket = window.io({ path: '/socket.io' });
 
-    socket.emit('slideshow:join', { eventId: eventId });
+    // (Re)joindre la salle a chaque connexion : apres une coupure, la
+    // nouvelle socket n'appartient plus a aucune salle.
+    socket.on('connect', function onConnect() {
+      socket.emit('slideshow:join', { eventId: eventId });
+    });
 
     socket.on('slideshow:new-photo', function onNewPhoto(payload) {
       if (!payload || Number(payload.eventId) !== eventId || isNotStarted) {
