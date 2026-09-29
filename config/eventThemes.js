@@ -15,12 +15,12 @@ const EVENT_THEMES = {
   },
   gaming: {
     key: 'gaming',
-    label: 'Jeux video',
+    label: 'Jeux vidéo',
     icon: '🎮',
   },
   cinema: {
     key: 'cinema',
-    label: 'Cinema',
+    label: 'Cinéma',
     icon: '🎬',
   },
   halloween: {
@@ -30,7 +30,7 @@ const EVENT_THEMES = {
   },
   christmas: {
     key: 'christmas',
-    label: 'Noel',
+    label: 'Noël',
     icon: '🎄',
   },
   tropical: {
@@ -45,7 +45,7 @@ const EVENT_THEMES = {
   },
   neonparty: {
     key: 'neonparty',
-    label: 'Neon Party',
+    label: 'Néon party',
     icon: '⚡',
   },
 };

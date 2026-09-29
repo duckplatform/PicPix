@@ -18,19 +18,29 @@
 
   let dashboardNote = 'Images uniquement, 10 Mo max par fichier.';
   if (isCameraOnly) {
-    dashboardNote += ' Mode camera uniquement.';
+    dashboardNote += ' Mode caméra uniquement.';
   } else if (isLibraryOnly) {
-    dashboardNote += ' Mode phototheque uniquement.';
-  } else {
-    dashboardNote += ' Compatible galerie + prise de vue mobile.';
+    dashboardNote += ' Mode photothèque uniquement.';
   }
 
   dashboardNote += allowMultiple
-    ? ' Plusieurs photos a la suite sont autorisees.'
-    : ' Une seule photo a la fois est autorisee.';
+    ? ' Plusieurs photos à la suite autorisées.'
+    : ' Une seule photo à la fois.';
+
+  const dropzoneMessage = '<strong class="dz-title">Touchez pour choisir des photos</strong>'
+    + '<small class="dz-note">' + dashboardNote + '</small>';
 
   function renderMessage(message, type) {
     feedback.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+  }
+
+  // Dropzone n'insere son message par defaut que sur un element de classe
+  // "dropzone" : on l'ajoute nous-memes (masque via .dz-started des le 1er ajout).
+  if (!dropzoneHost.querySelector('.dz-message')) {
+    const messageEl = document.createElement('div');
+    messageEl.className = 'dz-message';
+    messageEl.innerHTML = '<span class="dz-button">' + dropzoneMessage + '</span>';
+    dropzoneHost.prepend(messageEl);
   }
 
   const dropzone = new window.Dropzone(dropzoneHost, {
@@ -44,7 +54,7 @@
     paramName: 'photos',
     clickable: true,
     addRemoveLinks: true,
-    dictDefaultMessage: dashboardNote,
+    dictDefaultMessage: dropzoneMessage,
     dictRemoveFile: 'Retirer',
     headers: {
       'x-csrf-token': csrfInput.value,
@@ -72,12 +82,12 @@
   });
 
   dropzone.on('error', function onError(file, message) {
-    const text = typeof message === 'string' ? message : (message && message.message) || `Erreur d'upload sur ${file.name}.`;
+    const text = typeof message === 'string' ? message : (message && message.message) || `Échec de l'envoi de ${file.name}.`;
     renderMessage(text, 'error');
   });
 
   dropzone.on('success', function onSuccess(file, response) {
-    renderMessage((response && response.message) || `Photo televersee : ${file.name}`, 'success');
+    renderMessage((response && response.message) || `Photo envoyée : ${file.name}`, 'success');
   });
 
   dropzone.on('successmultiple', function onSuccessMultiple(files, response) {
@@ -85,12 +95,12 @@
       return;
     }
 
-    renderMessage((response && response.message) || `${files.length} fichier(s) televerse(s) avec succes.`, 'success');
+    renderMessage((response && response.message) || `${files.length} photo(s) envoyée(s).`, 'success');
   });
 
   dropzone.on('maxfilesexceeded', function onMaxExceeded(file) {
     dropzone.removeFile(file);
-    renderMessage('Trop de fichiers selectionnes pour cet evenement.', 'error');
+    renderMessage('Trop de fichiers sélectionnés pour cet événement.', 'error');
   });
 
   // Expose l'instance pour camera.js

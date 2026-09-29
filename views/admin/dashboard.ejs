@@ -1,15 +1,16 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header') %>
+<% const badgeLabels = { admin: 'Admin', user: 'Utilisateur', active: 'Actif', inactive: 'Inactif', disabled: 'Désactivé', closed: 'Clôturé' }; %>
 <section class="card admin-header">
   <div>
     <p class="eyebrow">Administration</p>
     <h1>Gestion des utilisateurs</h1>
-    <p>Liste complete des comptes, profils et droits d'acces.</p>
+    <p>Comptes, profils et droits d'accès.</p>
   </div>
   <div class="table-actions">
     <a class="btn" href="/admin/users/new">Ajouter un utilisateur</a>
-    <a class="btn btn-secondary" href="/admin/events/new">Ajouter un evenement</a>
-    <a class="btn btn-secondary" href="/admin/settings">Reglages</a>
+    <a class="btn btn-secondary" href="/admin/events/new">Ajouter un événement</a>
+    <a class="btn btn-secondary" href="/admin/settings">Réglages</a>
   </div>
 </section>
 
@@ -19,9 +20,9 @@
       <tr>
         <th>Nom</th>
         <th>Email</th>
-        <th>Role</th>
+        <th>Rôle</th>
         <th>Statut</th>
-        <th>Derniere connexion</th>
+        <th>Dernière connexion</th>
         <th>Actions</th>
       </tr>
     </thead>
@@ -30,8 +31,8 @@
         <tr>
           <td><%= item.fullName %></td>
           <td><%= item.email %></td>
-          <td><span class="badge badge-<%= item.role %>"><%= item.role %></span></td>
-          <td><span class="badge badge-<%= item.status %>"><%= item.status %></span></td>
+          <td><span class="badge badge-<%= item.role %>"><%= badgeLabels[item.role] || item.role %></span></td>
+          <td><span class="badge badge-<%= item.status %>"><%= badgeLabels[item.status] || item.status %></span></td>
           <td><%= item.lastLoginAt ? formatDateTime(item.lastLoginAt) : 'Jamais' %></td>
           <td>
             <div class="table-actions">
@@ -51,8 +52,8 @@
 <section class="card admin-header section-gap">
   <div>
     <p class="eyebrow">Administration</p>
-    <h2>Gestion des evenements</h2>
-    <p>CRUD complet des evenements crees par les utilisateurs.</p>
+    <h2>Gestion des événements</h2>
+    <p>Tous les événements créés par les utilisateurs.</p>
   </div>
 </section>
 
@@ -62,7 +63,7 @@
       <thead>
         <tr>
           <th>Nom</th>
-          <th>Proprietaire</th>
+          <th>Propriétaire</th>
           <th>Date/heure</th>
           <th>Statut</th>
           <th>Archive photos</th>
@@ -76,22 +77,22 @@
             <td>
               <%= eventItem.name %>
               <% if (isClosed && eventItem.closedAt) { %>
-                <small class="muted-note">Cloture le <%= formatDateTime(eventItem.closedAt) %></small>
+                <small class="muted-note">Clôturé le <%= formatDateTime(eventItem.closedAt) %></small>
               <% } %>
             </td>
             <td><%= eventItem.ownerFullName %> (<%= eventItem.ownerEmail %>)</td>
             <td><%= formatDateTime(eventItem.startsAt) %></td>
-            <td><span class="badge badge-<%= eventItem.status %>"><%= isClosed ? 'cloture' : eventItem.status %></span></td>
+            <td><span class="badge badge-<%= eventItem.status %>"><%= badgeLabels[eventItem.status] || eventItem.status %></span></td>
             <td>
               <% if (!isClosed) { %>
                 <span class="muted-note">&mdash;</span>
               <% } else if (eventItem.archiveStatus === 'ready') { %>
-                <a class="btn btn-small" href="/admin/events/<%= eventItem.id %>/archive">Telecharger le ZIP</a>
+                <a class="btn btn-small" href="/admin/events/<%= eventItem.id %>/archive">Télécharger le ZIP</a>
                 <small class="muted-note">
                   <%= eventItem.archivePhotoCount || 0 %> photo(s)<% if (eventItem.archiveSizeBytes) { %> &middot; <%= (eventItem.archiveSizeBytes / (1024 * 1024)).toFixed(1) %> Mo<% } %>
                 </small>
               <% } else if (eventItem.archiveStatus === 'failed') { %>
-                <span class="archive-failed" title="<%= eventItem.archiveError || '' %>">Echec de generation</span>
+                <span class="archive-failed" title="<%= eventItem.archiveError || '' %>">Échec de génération</span>
                 <form method="post" action="/admin/events/<%= eventItem.id %>/archive/retry" class="inline-form">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                   <button class="btn btn-secondary btn-small" type="submit">Relancer</button>
@@ -99,7 +100,7 @@
               <% } else { %>
                 <span class="archive-pending">
                   <span class="archive-spinner" aria-hidden="true"></span>
-                  Preparation en cours&hellip;
+                  Préparation en cours&hellip;
                 </span>
               <% } %>
             </td>
@@ -109,7 +110,7 @@
                 <% if (!isClosed) { %>
                   <a class="btn btn-secondary btn-small" href="/admin/events/<%= eventItem.id %>/edit">Modifier</a>
                 <% } %>
-                <form method="post" action="/admin/events/<%= eventItem.id %>?_method=DELETE" class="inline-form" onsubmit="return confirm('Supprimer cet evenement ? Cette action supprimera aussi toutes les donnees stockees de cet evenement.');">
+                <form method="post" action="/admin/events/<%= eventItem.id %>?_method=DELETE" class="inline-form" onsubmit="return confirm('Supprimer cet événement ? Cette action supprimera aussi toutes les données stockées de cet événement.');">
                   <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
                   <button class="btn btn-danger btn-small" type="submit">Supprimer</button>
                 </form>

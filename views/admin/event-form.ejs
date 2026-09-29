@@ -3,8 +3,8 @@
 <section class="card form-card">
   <div>
     <p class="eyebrow">Administration</p>
-    <h1><%= mode === 'create' ? 'Creer un evenement' : 'Modifier un evenement' %></h1>
-    <p>Renseigner uniquement les champs metier utiles de l'evenement.</p>
+    <h1><%= mode === 'create' ? 'Nouvel événement' : 'Modifier l\'événement' %></h1>
+    <p>Informations et options de l'événement.</p>
   </div>
 
   <% if (mode === 'edit') { %>
@@ -20,7 +20,7 @@
     </div>
     <form method="post" action="/admin/events/<%= editingEvent.id %>/regenerate-token" class="inline-form section-gap">
       <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-      <button class="btn btn-secondary" type="submit">Regenerer le token</button>
+      <button class="btn btn-secondary" type="submit">Régénérer le lien</button>
     </form>
   <% } %>
 
@@ -28,7 +28,7 @@
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
     <label>
-      <span>Nom de l'evenement</span>
+      <span>Nom de l'événement</span>
       <input type="text" name="name" value="<%= formData.name || '' %>" required maxlength="180" />
       <% if (fieldErrors.name) { %><small class="field-error"><%= fieldErrors.name %></small><% } %>
     </label>
@@ -40,7 +40,7 @@
     </label>
 
     <label>
-      <span>Proprietaire</span>
+      <span>Propriétaire</span>
       <select name="ownerUserId" required>
         <% users.forEach((item) => { %>
           <option value="<%= item.id %>" <%= Number(formData.ownerUserId || 0) === item.id ? 'selected' : '' %>>
@@ -51,6 +51,7 @@
       <% if (fieldErrors.ownerUserId) { %><small class="field-error"><%= fieldErrors.ownerUserId %></small><% } %>
     </label>
 
+    <div class="form-row">
     <label>
       <span>Date et heure</span>
       <input type="datetime-local" name="startsAt" value="<%= formData.startsAt || '' %>" required />
@@ -60,14 +61,16 @@
     <label>
       <span>Statut</span>
       <select name="status" required>
-        <option value="inactive" <%= (formData.status || 'inactive') === 'inactive' ? 'selected' : '' %>>inactive</option>
-        <option value="active" <%= formData.status === 'active' ? 'selected' : '' %>>active</option>
+        <option value="inactive" <%= (formData.status || 'inactive') === 'inactive' ? 'selected' : '' %>>Inactif</option>
+        <option value="active" <%= formData.status === 'active' ? 'selected' : '' %>>Actif</option>
       </select>
       <% if (fieldErrors.status) { %><small class="field-error"><%= fieldErrors.status %></small><% } %>
     </label>
+    </div>
 
+    <div class="form-row">
     <label>
-      <span>Theme visuel</span>
+      <span>Thème visuel</span>
       <select name="theme" required>
         <% eventThemeOptions.forEach((themeItem) => { %>
           <option value="<%= themeItem.key %>" <%= (formData.theme || 'classic') === themeItem.key ? 'selected' : '' %>>
@@ -79,7 +82,7 @@
     </label>
 
     <label>
-      <span>Transition slideshow</span>
+      <span>Transition du diaporama</span>
       <select name="slideshowTransition" required>
         <% eventTransitionOptions.forEach((transitionItem) => { %>
           <option value="<%= transitionItem.key %>" <%= (formData.slideshowTransition || 'fade') === transitionItem.key ? 'selected' : '' %>>
@@ -89,13 +92,14 @@
       </select>
       <% if (fieldErrors.slideshowTransition) { %><small class="field-error"><%= fieldErrors.slideshowTransition %></small><% } %>
     </label>
+    </div>
 
     <label>
       <span>Source des photos</span>
       <select name="uploadSourceMode" required>
-        <option value="default" <%= (formData.uploadSourceMode || 'default') === 'default' ? 'selected' : '' %>>Defaut</option>
-        <option value="camera_only" <%= formData.uploadSourceMode === 'camera_only' ? 'selected' : '' %>>Camera uniquement</option>
-        <option value="library_only" <%= formData.uploadSourceMode === 'library_only' ? 'selected' : '' %>>Phototheque uniquement</option>
+        <option value="default" <%= (formData.uploadSourceMode || 'default') === 'default' ? 'selected' : '' %>>Par défaut</option>
+        <option value="camera_only" <%= formData.uploadSourceMode === 'camera_only' ? 'selected' : '' %>>Caméra uniquement</option>
+        <option value="library_only" <%= formData.uploadSourceMode === 'library_only' ? 'selected' : '' %>>Photothèque uniquement</option>
       </select>
       <% if (fieldErrors.uploadSourceMode) { %><small class="field-error"><%= fieldErrors.uploadSourceMode %></small><% } %>
     </label>
@@ -103,7 +107,7 @@
     <label>
       <span class="checkbox-label">
         <input type="checkbox" name="uploadAllowMultiple" value="1" <%= formData.uploadAllowMultiple !== false ? 'checked' : '' %> />
-        Autoriser plusieurs photos d'affilee
+        Autoriser plusieurs photos d'affilée
       </span>
       <% if (fieldErrors.uploadAllowMultiple) { %><small class="field-error"><%= fieldErrors.uploadAllowMultiple %></small><% } %>
     </label>
@@ -111,30 +115,30 @@
     <label>
       <span class="checkbox-label">
         <input type="checkbox" name="moderationEnabled" value="1" <%= formData.moderationEnabled ? 'checked' : '' %> />
-        Activer la moderation avant affichage sur le slideshow
+        Activer la modération avant publication (galerie et diaporama)
       </span>
       <% if (fieldErrors.moderationEnabled) { %><small class="field-error"><%= fieldErrors.moderationEnabled %></small><% } %>
     </label>
 
-    <button class="btn" type="submit"><%= mode === 'create' ? 'Creer evenement' : 'Mettre a jour evenement' %></button>
+    <button class="btn" type="submit"><%= mode === 'create' ? 'Créer l\'événement' : 'Enregistrer les modifications' %></button>
   </form>
 </section>
 
 <% if (mode === 'edit') { %>
   <section class="card table-card section-gap">
     <div>
-      <p class="eyebrow">Photos evenement</p>
-      <h2>Apercu des fichiers</h2>
+      <p class="eyebrow">Photos de l'événement</p>
+      <h2>Aperçu des fichiers</h2>
     </div>
 
     <% if (!eventFiles || !eventFiles.length) { %>
-      <p>Aucun fichier photo pour cet evenement.</p>
+      <div class="empty-state"><p>Aucun fichier photo pour cet événement.</p></div>
     <% } else { %>
       <div class="table-wrap">
         <table class="data-table">
           <thead>
             <tr>
-              <th>Apercu</th>
+              <th>Aperçu</th>
               <th>Nom original</th>
               <th>Taille</th>
               <th>Date</th>

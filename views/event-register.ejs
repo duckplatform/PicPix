@@ -1,9 +1,10 @@
 <%- include('partials/head') %>
 <%- include('partials/header') %>
-<section class="card form-card">
+<section class="card form-card auth-card">
   <div>
-    <p class="eyebrow">Acces evenement</p>
-    <p>Avant d'acceder a l'espace prive, renseignez simplement votre nom.</p>
+    <p class="eyebrow">Accès à l'événement</p>
+    <h1>Bienvenue</h1>
+    <p>Indiquez simplement votre prénom : il accompagnera les photos que vous partagerez.</p>
   </div>
 
   <form method="post" action="/event/<%= eventItem.token %>/register" class="form-grid">
@@ -11,11 +12,11 @@
 
     <label>
       <span>Votre nom</span>
-      <input type="text" name="guestName" value="<%= formData.guestName || '' %>" required maxlength="120" />
+      <input type="text" name="guestName" value="<%= formData.guestName || '' %>" required maxlength="120" autocomplete="given-name" />
       <% if (fieldErrors.guestName) { %><small class="field-error"><%= fieldErrors.guestName %></small><% } %>
     </label>
 
-    <button class="btn" type="submit">Entrer dans l'evenement</button>
+    <button class="btn btn-lg" type="submit">Entrer dans l'événement</button>
   </form>
 </section>
 <%- include('partials/footer') %>

@@ -3,12 +3,16 @@
 
 <section class="card form-card">
   <div>
-    <p class="eyebrow">Galerie evenement</p>
-    <p>Consultez les photos optimisees pour un affichage rapide sur mobile.</p>
+    <p class="eyebrow">Galerie de l'événement</p>
+    <h1>Les photos partagées</h1>
+    <p>Touchez une photo pour l'ouvrir en grand format.</p>
   </div>
 
   <% if (!galleryFiles.length) { %>
-    <p>Aucune photo disponible pour le moment.</p>
+    <div class="empty-state">
+      <strong>Aucune photo disponible pour le moment.</strong>
+      <p>Soyez le premier à partager un souvenir de l'événement.</p>
+    </div>
   <% } else { %>
     <div class="event-gallery-grid">
       <% galleryFiles.forEach((fileItem) => { %>
@@ -23,7 +27,7 @@
           <div class="event-gallery-meta">
             <strong><%= fileItem.originalName %></strong>
             <small>
-              <%= fileItem.isProcessed ? 'Version optimisee disponible' : 'Optimisation en cours...' %>
+              <%= fileItem.isProcessed ? 'Version optimisée disponible' : 'Optimisation en cours…' %>
             </small>
           </div>
         </article>

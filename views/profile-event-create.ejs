@@ -2,16 +2,16 @@
 <%- include('partials/header') %>
 <section class="card form-card">
   <div>
-    <p class="eyebrow">Mes evenements</p>
-    <h1>Creer un evenement</h1>
-    <p>Renseignez les informations principales de votre evenement puis publiez-le quand vous etes pret.</p>
+    <p class="eyebrow">Mes événements</p>
+    <h1>Nouvel événement</h1>
+    <p>Renseignez les informations principales, puis activez l'événement quand vous êtes prêt à le partager.</p>
   </div>
 
   <form method="post" action="/profile/events" class="form-grid section-gap">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
     <label>
-      <span>Nom de l'evenement</span>
+      <span>Nom de l'événement</span>
       <input type="text" name="name" value="<%= formData.name || '' %>" required maxlength="180" />
       <% if (fieldErrors.name) { %><small class="field-error"><%= fieldErrors.name %></small><% } %>
     </label>
@@ -22,6 +22,7 @@
       <% if (fieldErrors.description) { %><small class="field-error"><%= fieldErrors.description %></small><% } %>
     </label>
 
+    <div class="form-row">
     <label>
       <span>Date et heure</span>
       <input type="datetime-local" name="startsAt" value="<%= formData.startsAt || '' %>" required />
@@ -31,14 +32,16 @@
     <label>
       <span>Statut</span>
       <select name="status" required>
-        <option value="inactive" <%= (formData.status || 'inactive') === 'inactive' ? 'selected' : '' %>>inactive</option>
-        <option value="active" <%= formData.status === 'active' ? 'selected' : '' %>>active</option>
+        <option value="inactive" <%= (formData.status || 'inactive') === 'inactive' ? 'selected' : '' %>>Inactif</option>
+        <option value="active" <%= formData.status === 'active' ? 'selected' : '' %>>Actif</option>
       </select>
       <% if (fieldErrors.status) { %><small class="field-error"><%= fieldErrors.status %></small><% } %>
     </label>
+    </div>
 
+    <div class="form-row">
     <label>
-      <span>Theme visuel</span>
+      <span>Thème visuel</span>
       <select name="theme" required>
         <% eventThemeOptions.forEach((themeItem) => { %>
           <option value="<%= themeItem.key %>" <%= (formData.theme || 'classic') === themeItem.key ? 'selected' : '' %>>
@@ -50,7 +53,7 @@
     </label>
 
     <label>
-      <span>Transition slideshow</span>
+      <span>Transition du diaporama</span>
       <select name="slideshowTransition" required>
         <% eventTransitionOptions.forEach((transitionItem) => { %>
           <option value="<%= transitionItem.key %>" <%= (formData.slideshowTransition || 'fade') === transitionItem.key ? 'selected' : '' %>>
@@ -60,13 +63,14 @@
       </select>
       <% if (fieldErrors.slideshowTransition) { %><small class="field-error"><%= fieldErrors.slideshowTransition %></small><% } %>
     </label>
+    </div>
 
     <label>
       <span>Source des photos</span>
       <select name="uploadSourceMode" required>
-        <option value="default" <%= (formData.uploadSourceMode || 'default') === 'default' ? 'selected' : '' %>>Defaut</option>
-        <option value="camera_only" <%= formData.uploadSourceMode === 'camera_only' ? 'selected' : '' %>>Camera uniquement</option>
-        <option value="library_only" <%= formData.uploadSourceMode === 'library_only' ? 'selected' : '' %>>Phototheque uniquement</option>
+        <option value="default" <%= (formData.uploadSourceMode || 'default') === 'default' ? 'selected' : '' %>>Par défaut</option>
+        <option value="camera_only" <%= formData.uploadSourceMode === 'camera_only' ? 'selected' : '' %>>Caméra uniquement</option>
+        <option value="library_only" <%= formData.uploadSourceMode === 'library_only' ? 'selected' : '' %>>Photothèque uniquement</option>
       </select>
       <% if (fieldErrors.uploadSourceMode) { %><small class="field-error"><%= fieldErrors.uploadSourceMode %></small><% } %>
     </label>
@@ -74,7 +78,7 @@
     <label>
       <span class="checkbox-label">
         <input type="checkbox" name="uploadAllowMultiple" value="1" <%= formData.uploadAllowMultiple !== false ? 'checked' : '' %> />
-        Autoriser plusieurs photos d'affilee
+        Autoriser plusieurs photos d'affilée
       </span>
       <% if (fieldErrors.uploadAllowMultiple) { %><small class="field-error"><%= fieldErrors.uploadAllowMultiple %></small><% } %>
     </label>
@@ -82,14 +86,14 @@
     <label>
       <span class="checkbox-label">
         <input type="checkbox" name="moderationEnabled" value="1" <%= formData.moderationEnabled ? 'checked' : '' %> />
-        Activer la moderation avant affichage sur le slideshow
+        Activer la modération avant publication (galerie et diaporama)
       </span>
       <% if (fieldErrors.moderationEnabled) { %><small class="field-error"><%= fieldErrors.moderationEnabled %></small><% } %>
     </label>
 
     <div class="table-actions">
-      <button class="btn" type="submit">Creer l'evenement</button>
-      <a class="btn btn-secondary" href="/profile">Retour au profil</a>
+      <button class="btn" type="submit">Créer l'événement</button>
+      <a class="btn btn-secondary" href="/profile">Annuler</a>
     </div>
   </form>
 </section>

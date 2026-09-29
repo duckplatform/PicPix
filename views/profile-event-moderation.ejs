@@ -3,24 +3,24 @@
 
 <section class="card form-card" id="moderation-shell" data-event-id="<%= editingEvent.id %>">
   <div>
-    <p class="eyebrow">Moderation</p>
-    <h1>Moderation des photos</h1>
-    <p>Evenement : <strong><%= editingEvent.name %></strong>.</p>
+    <p class="eyebrow">Modération</p>
+    <h1>Modération des photos</h1>
+    <p>Événement : <strong><%= editingEvent.name %></strong>.</p>
     <p>
       <% if (editingEvent.moderationEnabled) { %>
-        La moderation est active : seules les photos approuvees seront visibles sur le slideshow et la galerie publique.
+        La modération est active : seules les photos approuvées apparaissent dans le diaporama et la galerie invités.
       <% } else { %>
-        La moderation est desactivee : les nouvelles photos sont publiees directement. Vous pouvez tout de meme approuver ou rejeter manuellement des photos existantes.
+        La modération est désactivée : les nouvelles photos sont publiées directement. Vous pouvez tout de même approuver ou rejeter des photos existantes.
       <% } %>
     </p>
   </div>
 
   <div class="table-actions">
-    <a class="btn btn-secondary" href="/profile/events/<%= editingEvent.id %>/edit">Retour a l'edition</a>
-    <a class="btn btn-secondary" href="/profile/events/<%= editingEvent.id %>/gallery">Voir la galerie proprietaire</a>
+    <a class="btn btn-secondary" href="/profile/events/<%= editingEvent.id %>/edit">Retour à l'édition</a>
+    <a class="btn btn-secondary" href="/profile/events/<%= editingEvent.id %>/gallery">Voir la galerie</a>
   </div>
 
-  <p id="moderation-empty" class="section-gap" <%= moderationFiles.length ? 'hidden' : '' %>>Aucune photo en attente de moderation pour le moment.</p>
+  <p id="moderation-empty" class="empty-state section-gap" <%= moderationFiles.length ? 'hidden' : '' %>>Aucune photo en attente de modération pour le moment.</p>
 
   <div id="moderation-pending-grid" class="event-gallery-grid section-gap" <%= moderationFiles.length ? '' : 'hidden' %>>
     <% moderationFiles.forEach((fileItem) => { %>

@@ -67,8 +67,8 @@ async function notifyArchiveRequesters(eventItem, { emails } = {}) {
   const safeEventName = escapeHtml(eventItem.name);
   const safeDownloadUrl = escapeHtml(downloadUrl);
   const subject = `L'archive photos de "${eventItem.name}" est disponible`;
-  const text = `Bonjour,\n\nL'archive complete des photos de l'evenement "${eventItem.name}" est disponible au telechargement :\n${downloadUrl}\n\nCeci est un message automatique.`;
-  const html = `<p>Bonjour,</p><p>L'archive complete des photos de l'evenement <strong>${safeEventName}</strong> est disponible au telechargement :</p><p><a href="${safeDownloadUrl}">${safeDownloadUrl}</a></p><p>Ceci est un message automatique.</p>`;
+  const text = `Bonjour,\n\nL'archive complète des photos de l'événement "${eventItem.name}" est disponible au téléchargement :\n${downloadUrl}\n\nCeci est un message automatique.`;
+  const html = `<p>Bonjour,</p><p>L'archive complète des photos de l'événement <strong>${safeEventName}</strong> est disponible au téléchargement :</p><p><a href="${safeDownloadUrl}">${safeDownloadUrl}</a></p><p>Ceci est un message automatique.</p>`;
 
   const results = await Promise.allSettled(
     recipients.map((requestItem) => mailService.sendMail({

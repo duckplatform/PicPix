@@ -46,7 +46,7 @@ function injectLocals(req, res, next) {
 
 function requireAuth(req, res, next) {
   if (!req.currentUser) {
-    req.flash('error', 'Veuillez vous connecter pour acceder a cette page.');
+    req.flash('error', 'Veuillez vous connecter pour accéder à cette page.');
     return res.redirect('/login');
   }
 
@@ -55,17 +55,17 @@ function requireAuth(req, res, next) {
 
 function requireAdmin(req, res, next) {
   if (!req.currentUser) {
-    req.flash('error', 'Veuillez vous connecter pour acceder a cette page.');
+    req.flash('error', 'Veuillez vous connecter pour accéder à cette page.');
     return res.redirect('/login');
   }
 
   if (req.currentUser.role !== 'admin') {
-    req.flash('error', 'Acces reserve aux administrateurs.');
+    req.flash('error', 'Accès réservé aux administrateurs.');
     return res.status(403).render('errors/500', {
-      title: 'Acces refuse',
+      title: 'Accès refusé',
       pageClass: 'page-error',
       statusCode: 403,
-      message: 'Vous ne disposez pas des droits necessaires pour acceder a cette page.',
+      message: 'Vous ne disposez pas des droits nécessaires pour accéder à cette page.',
     });
   }
 

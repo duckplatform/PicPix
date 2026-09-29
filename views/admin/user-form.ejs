@@ -1,10 +1,11 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header') %>
+<% const badgeLabels = { admin: 'Admin', user: 'Utilisateur', active: 'Actif', inactive: 'Inactif', disabled: 'Désactivé', closed: 'Clôturé' }; %>
 <section class="card form-card">
   <div>
     <p class="eyebrow">Administration</p>
-    <h1><%= mode === 'create' ? 'Creer un utilisateur' : 'Modifier un utilisateur' %></h1>
-    <p>Configurez le profil, le role et le statut du compte.</p>
+    <h1><%= mode === 'create' ? 'Nouvel utilisateur' : 'Modifier l\'utilisateur' %></h1>
+    <p>Configurez le profil, le rôle et le statut du compte.</p>
   </div>
   <form method="post" action="<%= mode === 'create' ? '/admin/users' : `/admin/users/${editingUser.id}?_method=PUT` %>" class="form-grid">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
@@ -21,11 +22,12 @@
       <% if (fieldErrors.email) { %><small class="field-error"><%= fieldErrors.email %></small><% } %>
     </label>
 
+    <div class="form-row">
     <label>
-      <span>Role</span>
+      <span>Rôle</span>
       <select name="role" required>
-        <option value="user" <%= (formData.role || 'user') === 'user' ? 'selected' : '' %>>user</option>
-        <option value="admin" <%= formData.role === 'admin' ? 'selected' : '' %>>admin</option>
+        <option value="user" <%= (formData.role || 'user') === 'user' ? 'selected' : '' %>>Utilisateur</option>
+        <option value="admin" <%= formData.role === 'admin' ? 'selected' : '' %>>Administrateur</option>
       </select>
       <% if (fieldErrors.role) { %><small class="field-error"><%= fieldErrors.role %></small><% } %>
     </label>
@@ -33,11 +35,12 @@
     <label>
       <span>Statut</span>
       <select name="status" required>
-        <option value="active" <%= (formData.status || 'active') === 'active' ? 'selected' : '' %>>active</option>
-        <option value="disabled" <%= formData.status === 'disabled' ? 'selected' : '' %>>disabled</option>
+        <option value="active" <%= (formData.status || 'active') === 'active' ? 'selected' : '' %>>Actif</option>
+        <option value="disabled" <%= formData.status === 'disabled' ? 'selected' : '' %>>Désactivé</option>
       </select>
       <% if (fieldErrors.status) { %><small class="field-error"><%= fieldErrors.status %></small><% } %>
     </label>
+    </div>
 
     <label>
       <span><%= mode === 'create' ? 'Mot de passe' : 'Nouveau mot de passe (optionnel)' %></span>
@@ -45,19 +48,19 @@
       <% if (fieldErrors.password) { %><small class="field-error"><%= fieldErrors.password %></small><% } %>
     </label>
 
-    <button class="btn" type="submit"><%= mode === 'create' ? 'Creer le compte' : 'Enregistrer les modifications' %></button>
+    <button class="btn" type="submit"><%= mode === 'create' ? 'Créer le compte' : 'Enregistrer les modifications' %></button>
   </form>
 </section>
 
 <% if (mode === 'edit') { %>
   <section class="card table-card section-gap">
     <div>
-      <p class="eyebrow">Evenements utilisateur</p>
-      <h2>Evenements de <%= editingUser.fullName %></h2>
+      <p class="eyebrow">Événements</p>
+      <h2>Événements de <%= editingUser.fullName %></h2>
     </div>
 
     <% if (!userEvents || !userEvents.length) { %>
-      <p>Aucun evenement pour cet utilisateur.</p>
+      <div class="empty-state"><p>Aucun événement pour cet utilisateur.</p></div>
     <% } else { %>
       <div class="table-wrap">
         <table class="data-table">
@@ -74,7 +77,7 @@
               <tr>
                 <td><%= eventItem.name %></td>
                 <td><%= formatDateTime(eventItem.startsAt) %></td>
-                <td><span class="badge badge-<%= eventItem.status %>"><%= eventItem.status %></span></td>
+                <td><span class="badge badge-<%= eventItem.status %>"><%= badgeLabels[eventItem.status] || eventItem.status %></span></td>
                 <td>
                   <div class="table-actions">
                     <a class="btn btn-secondary btn-small" href="/admin/events/<%= eventItem.id %>/edit">Admin</a>

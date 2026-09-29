@@ -90,6 +90,12 @@ app.use('/vendor/dropzone', express.static(path.join(__dirname, 'node_modules', 
   maxAge: ENV === 'production' ? '1d' : 0,
 }));
 
+// Chemin courant exposé aux vues (lien actif de la navigation).
+app.use((req, res, next) => {
+  res.locals.currentPath = req.path;
+  next();
+});
+
 // ─── Santé de l'application / disponibilité DB ────────────────────────────
 // Place AVANT les sessions : elles sont stockees dans MySQL, une base
 // indisponible ne doit donc pas empecher de repondre en mode degrade.
@@ -125,7 +131,7 @@ app.use((req, res, next) => {
     title:      'Service temporairement indisponible',
     pageClass:  'page-error',
     statusCode: 503,
-    message:    'L\'application est demarree, mais la base de donnees n\'est pas encore disponible. Reessayez dans quelques instants.',
+    message:    'L\'application est démarrée, mais la base de données n\'est pas encore disponible. Réessayez dans quelques instants.',
   });
 });
 
@@ -210,7 +216,7 @@ app.use((err, req, res, next) => {
   // Ecriture refusee par eventStore.updateEvent : l'evenement a ete cloture
   // entre la lecture faite par la route et l'UPDATE (cloture concurrente).
   if (err.code === 'EVENT_CLOSED') {
-    req.flash('error', 'Cet evenement est cloture definitivement : il ne peut plus etre modifie.');
+    req.flash('error', 'Cet événement est clôturé définitivement : il ne peut plus être modifié.');
     return res.redirect(req.originalUrl.startsWith('/admin') ? '/admin' : '/profile');
   }
 

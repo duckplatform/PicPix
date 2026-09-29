@@ -70,7 +70,7 @@
     lastTrigger = trigger;
     form.action = '/profile/events/' + eventId + '/close';
     moderationLink.href = '/profile/event/' + eventId + '/moderation';
-    nameEl.textContent = trigger.dataset.eventName || 'cet evenement';
+    nameEl.textContent = trigger.dataset.eventName || 'cet événement';
     confirmInput.value = '';
     submitBtn.disabled = true;
 
@@ -105,7 +105,7 @@
 
       // Evite un double envoi si l'utilisateur clique deux fois.
       submitBtn.disabled = true;
-      submitBtn.textContent = 'Cloture en cours…';
+      submitBtn.textContent = 'Clôture en cours…';
     });
 
     cancelBtn.addEventListener('click', closeModal);
@@ -148,7 +148,7 @@
     const link = document.createElement('a');
     link.className = 'btn btn-small';
     link.href = payload.downloadUrl;
-    link.textContent = 'Telecharger le ZIP';
+    link.textContent = 'Télécharger le ZIP';
 
     const meta = document.createElement('small');
     meta.className = 'muted-note';
@@ -164,7 +164,7 @@
   function renderFailed(cell) {
     const message = document.createElement('span');
     message.className = 'archive-failed';
-    message.textContent = 'La generation de l\'archive a echoue. Contactez un administrateur.';
+    message.textContent = 'La génération de l\'archive a échoué. Contactez un administrateur.';
 
     cell.textContent = '';
     cell.appendChild(message);

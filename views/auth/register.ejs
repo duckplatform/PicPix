@@ -1,39 +1,40 @@
 <%- include('../partials/head') %>
 <%- include('../partials/header') %>
-<section class="card form-card">
+<section class="card form-card auth-card">
   <div>
     <p class="eyebrow">Nouveau compte</p>
-    <h1>Inscription</h1>
-    <p>Creer un compte utilisateur securise pour acceder a votre espace PicPix.</p>
+    <h1>Créer un compte</h1>
+    <p>Un compte organisateur pour créer vos événements et collecter les photos de vos invités.</p>
   </div>
   <form method="post" action="/register" class="form-grid">
     <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
 
     <label>
       <span>Nom complet</span>
-      <input type="text" name="fullName" value="<%= formData.fullName || '' %>" required maxlength="120" />
+      <input type="text" name="fullName" value="<%= formData.fullName || '' %>" required maxlength="120" autocomplete="name" />
       <% if (fieldErrors.fullName) { %><small class="field-error"><%= fieldErrors.fullName %></small><% } %>
     </label>
 
     <label>
       <span>Email</span>
-      <input type="email" name="email" value="<%= formData.email || '' %>" required maxlength="190" />
+      <input type="email" name="email" value="<%= formData.email || '' %>" required maxlength="190" autocomplete="email" />
       <% if (fieldErrors.email) { %><small class="field-error"><%= fieldErrors.email %></small><% } %>
     </label>
 
     <label>
       <span>Mot de passe</span>
-      <input type="password" name="password" required minlength="8" maxlength="72" />
+      <input type="password" name="password" required minlength="8" maxlength="72" autocomplete="new-password" />
       <% if (fieldErrors.password) { %><small class="field-error"><%= fieldErrors.password %></small><% } %>
     </label>
 
     <label>
       <span>Confirmation du mot de passe</span>
-      <input type="password" name="confirmPassword" required minlength="8" maxlength="72" />
+      <input type="password" name="confirmPassword" required minlength="8" maxlength="72" autocomplete="new-password" />
       <% if (fieldErrors.confirmPassword) { %><small class="field-error"><%= fieldErrors.confirmPassword %></small><% } %>
     </label>
 
-    <button class="btn" type="submit">Creer mon compte</button>
+    <button class="btn btn-lg" type="submit">Créer mon compte</button>
   </form>
+  <p class="auth-alt">Déjà inscrit ? <a href="/login">Se connecter</a></p>
 </section>
 <%- include('../partials/footer') %>

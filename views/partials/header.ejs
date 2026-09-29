@@ -1,3 +1,8 @@
+<%
+  const navPath = typeof currentPath !== 'undefined' ? currentPath : '';
+  const isCurrent = (href, exact) => (exact ? navPath === href : navPath === href || navPath.startsWith(`${href}/`));
+  const currentAttr = (href, exact) => (isCurrent(href, exact) ? 'aria-current="page"' : '');
+%>
 <header class="site-header">
   <div class="container header-inner <%= (typeof eventSiteNav !== 'undefined' && eventSiteNav) ? 'header-inner-event' : '' %>">
     <% if (typeof eventSiteNav !== 'undefined' && eventSiteNav) { %>
@@ -6,50 +11,50 @@
           <span class="event-theme-icon" aria-hidden="true"><%= eventSiteNav.eventTheme ? eventSiteNav.eventTheme.icon : '✦' %></span>
           <span class="event-theme-title"><%= eventSiteNav.eventName %></span>
         </a>
-        <nav class="nav-links nav-links-event" aria-label="Navigation evenement">
+        <nav class="nav-links nav-links-event" aria-label="Navigation événement">
           <span class="event-links-left">
-            <a href="<%= eventSiteNav.eventUrl %>">Evenement</a>
+            <a href="<%= eventSiteNav.eventUrl %>" <%- currentAttr(eventSiteNav.eventUrl, true) %>>Accueil</a>
             <% if (eventSiteNav.uploadUrl) { %>
-              <a href="<%= eventSiteNav.uploadUrl %>">Upload</a>
+              <a href="<%= eventSiteNav.uploadUrl %>" <%- currentAttr(eventSiteNav.uploadUrl, true) %>>Envoyer</a>
             <% } %>
-            <a href="<%= eventSiteNav.galleryUrl %>">Galerie</a>
+            <a href="<%= eventSiteNav.galleryUrl %>" <%- currentAttr(eventSiteNav.galleryUrl, true) %>>Galerie</a>
           </span>
           <span class="event-user-chip" title="<%= eventSiteNav.guestName %>">
             <span class="event-user-name"><%= eventSiteNav.guestName %></span>
-            <span class="event-user-icon" aria-hidden="true">👤</span>
+            <span class="event-user-icon" aria-hidden="true"><%- include('icon', { name: 'user', size: 16 }) %></span>
           </span>
         </nav>
       </div>
     <% } else { %>
-      <a class="brand" href="/">PicPix</a>
+      <a class="brand" href="/" aria-label="PicPix, accueil"><%- include('logo') %><span class="brand-word">PicPix</span></a>
       <nav class="nav-links" aria-label="Navigation principale">
-        <a href="/">Accueil</a>
+        <a class="nav-hide-sm" href="/" <%- currentAttr('/', true) %>>Accueil</a>
         <% if (user) { %>
-          <a href="/profile">Profil</a>
+          <a href="/profile" <%- currentAttr('/profile') %>>Mes événements</a>
           <% if (user.role === 'admin') { %>
-            <a href="/admin">Administration</a>
+            <a href="/admin" <%- currentAttr('/admin') %>>Administration</a>
           <% } %>
           <form method="post" action="/logout" class="inline-form">
             <input type="hidden" name="_csrf" value="<%= csrfToken %>" />
-            <button class="btn btn-secondary btn-inline" type="submit">Deconnexion</button>
+            <button class="btn btn-ghost btn-inline" type="submit">Déconnexion</button>
           </form>
         <% } else { %>
-          <a href="/register">Inscription</a>
-          <a href="/login">Connexion</a>
+          <a href="/login" <%- currentAttr('/login', true) %>>Connexion</a>
+          <a class="nav-cta" href="/register" <%- currentAttr('/register', true) %>>Créer un compte</a>
         <% } %>
       </nav>
     <% } %>
   </div>
 </header>
 
-<main class="container page-shell">
+<main id="contenu" class="container page-shell">
   <% if (messages.error.length || messages.success.length) { %>
-    <section class="flash-stack" aria-label="Messages systeme">
+    <section class="flash-stack" aria-label="Messages système">
       <% messages.error.forEach((message) => { %>
-        <div class="alert alert-error"><%= message %></div>
+        <div class="alert alert-error" role="alert"><%= message %></div>
       <% }) %>
       <% messages.success.forEach((message) => { %>
-        <div class="alert alert-success"><%= message %></div>
+        <div class="alert alert-success" role="status"><%= message %></div>
       <% }) %>
     </section>
   <% } %>
