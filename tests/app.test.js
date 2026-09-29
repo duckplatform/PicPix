@@ -30,6 +30,20 @@ function extractCsrfToken(html) {
   return match[1];
 }
 
+async function loginAsDefaultAdmin(agent) {
+  const loginPage = await agent.get('/login');
+
+  await agent
+    .post('/login')
+    .type('form')
+    .send({
+      _csrf: extractCsrfToken(loginPage.text),
+      email: 'admin@example.com',
+      password: 'Admin1234',
+    })
+    .expect(302);
+}
+
 async function registerGuestForEvent(agent, token, guestName = 'Visiteur Test') {
   const registerPage = await agent.get(`/event/${token}/register`);
   expect(registerPage.status).to.equal(200);
@@ -586,6 +600,71 @@ describe('Tests applicatifs HTTP', () => {
       const slideshow = await agent.get(`/profile/events/${themedEvent.id}/slideshow`);
       expect(slideshow.status).to.equal(200);
       expect(slideshow.text).to.include('event-theme-halloween');
+    });
+
+    it("affiche le compte a rebours sur le slideshow tant que l'evenement n'est pas ouvert", async () => {
+      const owner = await userStore.findByEmail('admin@example.com');
+      const upcomingEvent = await eventStore.createEvent({
+        ownerUserId: owner.id,
+        name: 'Projection a venir',
+        description: 'Diaporama projete avant ouverture.',
+        startsAt: '2099-12-31T23:59:00',
+        status: 'inactive',
+      });
+
+      const agent = request.agent(app);
+      await loginAsDefaultAdmin(agent);
+
+      const slideshow = await agent.get(`/profile/events/${upcomingEvent.id}/slideshow`);
+      expect(slideshow.status).to.equal(200);
+      expect(slideshow.text).to.include('id="slideshow-countdown-value"');
+      expect(slideshow.text).to.include('data-show-countdown="1"');
+      expect(slideshow.text).to.include('Bientôt');
+      expect(slideshow.text).to.not.include('En direct');
+      expect(slideshow.text).to.not.include('En attente des premières photos');
+
+      await eventStore.updateEvent(upcomingEvent.id, { status: 'active' });
+
+      const liveSlideshow = await agent.get(`/profile/events/${upcomingEvent.id}/slideshow`);
+      expect(liveSlideshow.text).to.not.include('id="slideshow-countdown-value"');
+      expect(liveSlideshow.text).to.include('En direct');
+      expect(liveSlideshow.text).to.include('En attente des premières photos');
+    });
+
+    it("previent le slideshow en temps reel quand l'organisateur active l'evenement", async () => {
+      const owner = await userStore.findByEmail('admin@example.com');
+      const upcomingEvent = await eventStore.createEvent({
+        ownerUserId: owner.id,
+        name: 'Ouverture en direct',
+        description: 'Le diaporama doit basculer seul.',
+        startsAt: '2099-12-31T23:59:00',
+        status: 'inactive',
+      });
+
+      const emitted = [];
+      const previousIo = app.locals.io;
+      app.locals.io = {
+        to: (room) => ({ emit: (eventName, payload) => emitted.push({ room, eventName, payload }) }),
+      };
+
+      try {
+        const agent = request.agent(app);
+        await loginAsDefaultAdmin(agent);
+
+        const profilePage = await agent.get('/profile');
+        await agent
+          .post(`/profile/events/${upcomingEvent.id}/activate`)
+          .type('form')
+          .send({ _csrf: extractCsrfToken(profilePage.text) })
+          .expect(302);
+      } finally {
+        app.locals.io = previousIo;
+      }
+
+      const statusUpdate = emitted.find((item) => item.eventName === 'slideshow:event-updated');
+      expect(statusUpdate).to.exist;
+      expect(statusUpdate.room).to.equal(`event:${upcomingEvent.id}:slideshow`);
+      expect(statusUpdate.payload).to.include({ eventId: upcomingEvent.id, status: 'active' });
     });
 
     it('sanitise la description markdown lors de la creation d\'evenement', async () => {

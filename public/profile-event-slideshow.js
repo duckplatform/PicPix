@@ -264,6 +264,48 @@
     scheduleNextTick();
   }
 
+  // Evenement pas encore ouvert : compte a rebours (ou attente), aucune photo.
+  const eventStatus = shell.dataset.status || 'active';
+  const startsAtIso = shell.dataset.startsAt || '';
+  const isNotStarted = eventStatus === 'inactive';
+
+  function formatRemaining(ms) {
+    const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const clock = String(hours).padStart(2, '0') + ':'
+      + String(minutes).padStart(2, '0') + ':'
+      + String(seconds).padStart(2, '0');
+
+    return days > 0 ? days + 'j ' + clock : clock;
+  }
+
+  function startCountdown() {
+    const countdownEl = document.getElementById('slideshow-countdown-value');
+    const startsAt = new Date(startsAtIso);
+    // Decalage horloge serveur/ecran : sans lui, un ecran en avance
+    // rechargerait la page en boucle alors que le serveur attend encore.
+    const clockOffset = new Date(shell.dataset.now).getTime() - Date.now();
+
+    function tick() {
+      const diff = startsAt.getTime() - (Date.now() + clockOffset);
+
+      // Heure atteinte : le serveur decide (direct si l'evenement est active,
+      // sinon message d'attente jusqu'a l'activation, recue par socket).
+      if (diff <= 0) {
+        window.location.reload();
+        return;
+      }
+
+      countdownEl.textContent = formatRemaining(diff);
+      setTimeout(tick, 1000);
+    }
+
+    tick();
+  }
+
   initialPhotos.forEach(function seedPhoto(item) {
     addPhoto(item.storedName, item.originalName, false, item.uploaderName, item.uploadedAt);
   });
@@ -277,7 +319,7 @@
     socket.emit('slideshow:join', { eventId: eventId });
 
     socket.on('slideshow:new-photo', function onNewPhoto(payload) {
-      if (!payload || Number(payload.eventId) !== eventId) {
+      if (!payload || Number(payload.eventId) !== eventId || isNotStarted) {
         return;
       }
 
@@ -288,6 +330,25 @@
         runLoop();
       }
     });
+
+    // Activation par l'organisateur ou heure de debut modifiee : l'ecran
+    // projete bascule sans intervention.
+    socket.on('slideshow:event-updated', function onEventUpdated(payload) {
+      if (!payload || Number(payload.eventId) !== eventId) {
+        return;
+      }
+
+      if (payload.status !== eventStatus || (payload.startsAt || '') !== startsAtIso) {
+        window.location.reload();
+      }
+    });
+  }
+
+  if (isNotStarted) {
+    if (shell.dataset.showCountdown === '1') {
+      startCountdown();
+    }
+    return;
   }
 
   runLoop();
